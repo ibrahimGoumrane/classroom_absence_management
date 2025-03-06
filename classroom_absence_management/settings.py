@@ -45,7 +45,8 @@ INSTALLED_APPS = [
     'rest_framework',  # Django REST Framework
     'rest_framework.authtoken',  # Token authentication
     'apps.users',
-    'apps.classes',
+    'apps.students',
+    'apps.teachers',
     'apps.subjects',
     'apps.attendance',
 ]
@@ -86,15 +87,14 @@ WSGI_APPLICATION = 'classroom_absence_management.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',  # Use MySQL as the backend
-        'NAME': env.str("DB_NAME"),            # Get DB name from the .env file
-        'USER': env.str("DB_USER"),            # Get DB user from the .env file
-        'PASSWORD': env.str("DB_PASSWORD"),    # Get DB password from the .env file
-        'HOST': env.str("DB_HOST"),            # Get DB host (e.g., 'localhost' or 'db' for Docker)
-        'PORT': env.int("DB_PORT", default=3307),  # Default to 3306 if not specified
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'classroom_db',
+        'USER': 'admin',
+        'PASSWORD': 'root',
+        'HOST': 'db',  # or 'db' if in Docker
+        'PORT': '3306',  # Make sure this matches the port you're using
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

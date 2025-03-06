@@ -9,13 +9,18 @@ ENV PYTHONDONTWRITEBYTECODE 1
 WORKDIR /app
 
 # Install dependencies
+
+
+# Install system dependencies for Django 
+RUN apt-get update && \
+    apt-get install -y default-libmysqlclient-dev gcc pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt /app/
 
-# Install system dependencies for Django and PostgreSQL (if you use PostgreSQL)
-RUN apt-get update && \
-    apt-get install -y libpq-dev && \
-    pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN pip install --upgrade pip 
+RUN pip install -r requirements.txt
+
 
 # Copy the entire application into the container
 COPY . /app/
