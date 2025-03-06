@@ -49,6 +49,8 @@ INSTALLED_APPS = [
     'apps.teachers',
     'apps.subjects',
     'apps.attendance',
+    'apps.classes',
+    'django_extensions', # Django Extensions
 ]
 
 MIDDLEWARE = [
@@ -88,11 +90,11 @@ WSGI_APPLICATION = 'classroom_absence_management.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'classroom_db',
-        'USER': 'admin',
-        'PASSWORD': 'root',
-        'HOST': 'db',  # or 'db' if in Docker
-        'PORT': '3306',  # Make sure this matches the port you're using
+        'NAME': env.str('DB_NAME', default='classroom_db'),
+        'USER': env.str('DB_USER', default='admin'),
+        'PASSWORD': env.str('DB_PASSWORD', default='root'),
+        'HOST': env.str('DB_HOST', default='db'),  # or 'db' if in Docker
+        'PORT': env.int('DB_PORT', default=3307),  # Make sure this matches the port you're using
     }
 }
 
@@ -136,3 +138,7 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+AUTH_USER_MODEL = 'users.User'
