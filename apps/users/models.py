@@ -4,18 +4,23 @@ from django.core.exceptions import ValidationError
 
 # Custom User Manager
 class UserManager(BaseUserManager):
-    def create_user(self, email, first_name, last_name, password=None, **extra_fields):
+    def create_user(self, email, firstName, lastName, password=None, role='student', **extra_fields):
         if not email:
             raise ValueError("The Email field must be set")
         email = self.normalize_email(email)
-        user = self.model(email=email, first_name=first_name, last_name=last_name, **extra_fields)
-        user.set_password(password)  # This hashes the password
+        user = self.model(
+            email=email, 
+            firstName=firstName, 
+            lastName=lastName, 
+            role=role, 
+            **extra_fields
+        )
+        user.set_password(password)  # Hashes the password
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, first_name, last_name, password=None, **extra_fields):
-        return self.create_user(email, first_name, last_name, password, **extra_fields)
-    
+    def create_superuser(self, email, firstName, lastName, password=None, **extra_fields):
+        return self.create_user(email, firstName, lastName, password, role='admin', **extra_fields)
 
 # Custom User Model
 class User(AbstractBaseUser):
@@ -25,20 +30,21 @@ class User(AbstractBaseUser):
         ('admin', 'Admin'),
     ]
 
+    id = models.AutoField(primary_key=True)
     email = models.EmailField(unique=True)
     firstName = models.CharField(max_length=100)
     lastName = models.CharField(max_length=100)
-    role = models.CharField(max_length=100, choices=ROLE_CHOICES)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='student')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['firstName', 'lastName']
+    REQUIRED_FIELDS = ['firstName', 'lastName', 'role']
 
     objects = UserManager()
 
     class Meta:
-        db_table = 'user'  # Custom table name
+        db_table = 'user'
 
     def __str__(self):
         return self.email
@@ -49,4 +55,4 @@ class User(AbstractBaseUser):
         if not self.lastName:
             raise ValidationError('Last name is required')
         if self.role not in dict(self.ROLE_CHOICES):
-            raise ValidationError('Invalid role')
+            raise ValidationError('Invalid role') 
