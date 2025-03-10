@@ -15,14 +15,12 @@ from .serializer import UserSerializer, LoginSerializer
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    # permission_classes = [IsAuthenticated]  # Require authentication for all actions
 
     def perform_create(self, serializer):
         # Automatically hash the password when creating a user
         user = serializer.save()
         user.set_password(user.password)  # Hash the password
         user.save()
-
 
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
