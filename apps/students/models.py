@@ -1,13 +1,12 @@
 from django.db import models
 from apps.users.models import User
-
+from apps.classes.models import Class
+import os
+from django.conf import settings
 class Student(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="student_profile")
-    cycle = models.CharField(max_length=100)
-    year = models.IntegerField()
-    department = models.CharField(max_length=100)
-
+    section_promo = models.ForeignKey(Class, on_delete=models.SET_NULL, related_name="students")  # ForeignKey to Class model
     class Meta:
         db_table = 'student'  # Custom table name
 
@@ -17,7 +16,7 @@ class Student(models.Model):
 
 class StudentImage(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='images')
-    promo_section = models.CharField(max_length=255, help_text="e.g., EngineeringCycle-2_Year-Class_A")
+    section_promo = models.CharField(max_length=255, help_text="e.g., EngineeringCycle-2_Year-Class_A")
     image = models.ImageField(upload_to='training/', max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
@@ -27,9 +26,18 @@ class StudentImage(models.Model):
         verbose_name_plural = 'Student Images'
 
     def __str__(self):
-        return f"Image for {self.student.user.email} in {self.promo_section}"
+        return f"Image for {self.student.user.email} in {self.section_promo}"
 
     def save(self, *args, **kwargs):
-        if self.student and self.promo_section:
-            self.image.field.upload_to = f'training/{self.promo_section}/{self.student.id}/'
+        if self.student and self.section_promo:
+            class_name = self.student.section_promo.name
+            folder_path = os.path.join(settings.MEDIA_ROOT, class_name, str(self.student.user.id))
+            self.image.field.upload_to = folder_path
         super().save(*args, **kwargs)
+
+
+    def delete(self, *args, **kwargs):
+        # Delete the file from the filesystem
+        self.image.delete(save=False)
+        # Call the superclass delete method to delete the record from the database
+        super().delete(*args, **kwargs)
