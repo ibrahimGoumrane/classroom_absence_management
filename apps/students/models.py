@@ -16,7 +16,6 @@ class Student(models.Model):
 
 class StudentImage(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='images')
-    section_promo = models.CharField(max_length=255, help_text="e.g., EngineeringCycle-2_Year-Class_A")
     image = models.ImageField(upload_to='training/', max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
@@ -29,7 +28,7 @@ class StudentImage(models.Model):
         return f"Image for {self.student.user.email} in {self.section_promo}"
 
     def save(self, *args, **kwargs):
-        if self.student and self.section_promo:
+        if self.student :
             class_name = self.student.section_promo.name
             folder_path = os.path.join(settings.MEDIA_ROOT, class_name, str(self.student.user.id))
             self.image.field.upload_to = folder_path

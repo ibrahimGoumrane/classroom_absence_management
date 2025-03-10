@@ -4,9 +4,9 @@ from .views import StudentViewSet, UploadStudentImagesView
 # Router
 router = DefaultRouter()
 router.register(r'', StudentViewSet)
+router.register(r'images', UploadStudentImagesView)
 
 # URLs
 urlpatterns = [
     path('', include(router.urls)),
-    path('api/folder/images', UploadStudentImagesView.as_view(), name='upload-images'),
 ]

@@ -76,7 +76,6 @@ class UploadStudentImagesView(APIView):
 
     def post(self, request):
         user = request.user
-        section_promo = request.data.get('section_promo')
         images = request.FILES.getlist('images')
         if not user :
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -86,8 +85,8 @@ class UploadStudentImagesView(APIView):
         if user.role.lower() == 'admin':
             student_id = request.data.get('student_id')
 
-            if not all([section_promo, student_id, images]):
-                return Response({"error": "Missing required fields: section_promo, student_id, images"}, status=status.HTTP_400_BAD_REQUEST)
+            if not all([ student_id, images]):
+                return Response({"error": "Missing required fields: student_id, images"}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
                 student = Student.objects.get(id=student_id)
@@ -95,15 +94,14 @@ class UploadStudentImagesView(APIView):
                 return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
 
         else: 
-            if not all([section_promo, images]):
-                return Response({"error": "Missing required fields: section_promo, images"}, status=status.HTTP_400_BAD_REQUEST)
+            if not all([images]):
+                return Response({"error": "Missing required fields:  images"}, status=status.HTTP_400_BAD_REQUEST)
             
 
         for image in images:
-            StudentImage.objects.create(student=student, section_promo=section_promo, image=image)
+            StudentImage.objects.create(student=student,image=image)
         return Response({"message": "Images uploaded successfully"}, status=status.HTTP_201_CREATED)
     
-
     def delete(self, request):
         user = request.user
         if not user :
@@ -118,6 +116,11 @@ class UploadStudentImagesView(APIView):
         except StudentImage.DoesNotExist:
             return Response({"error": "Image not found"}, status=status.HTTP_404_NOT_FOUND)
 
+        if user.id != image.student.user.id:
+            return Response({"error": "You are not authorized to delete this image"}, status=status.HTTP_403_FORBIDDEN)
+
+
         image.delete()
+        
         return Response({"message": "Image deleted successfully"}, status=status.HTTP_200_OK)
 
