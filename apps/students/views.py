@@ -14,7 +14,7 @@ from apps.classes.models import Class
 class StudentViewSet(viewsets.ModelViewSet):
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
-
+    permission_classes = [IsAuthenticated]
 
     # This method is overridden to create a folder with the user ID inside the section_promo directory and create a user then create a student
     def create(self, request, *args, **kwargs):
@@ -43,6 +43,25 @@ class StudentViewSet(viewsets.ModelViewSet):
         # Create student with the created user
         request.data['user'] = user.id
         response = super().create(request, *args, **kwargs)
+        
+        return response
+    
+    # We will override the update method to update te user then the student
+    def update(self, request, *args, **kwargs):
+        # Extract user data from request
+        user_data = request.data.pop('user')
+
+        # Get the existing teacher instance
+        teacher_instance = self.get_object()
+
+        # Update the user
+        user_serializer = UserSerializer(teacher_instance.user, data=user_data, partial=True)
+        user_serializer.is_valid(raise_exception=True)
+        user_serializer.save()
+
+        # Update the teacher
+        request.data['user'] = user_serializer.data['id']
+        response = super().update(request, *args, **kwargs)
         
         return response
     
@@ -121,6 +140,6 @@ class UploadStudentImagesView(APIView):
 
 
         image.delete()
-        
+
         return Response({"message": "Image deleted successfully"}, status=status.HTTP_200_OK)
 

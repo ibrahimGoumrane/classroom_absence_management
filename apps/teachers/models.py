@@ -8,4 +8,4 @@ class Teacher(models.Model):
     class Meta:
         db_table = 'teacher'  # Custom table name
     def __str__(self):
-        return f"{self.user.firstName} {self.user.lastName} : ({self.teacher_id})"
+        return f"{self.user.firstName} {self.user.lastName} : ({self.department})"
