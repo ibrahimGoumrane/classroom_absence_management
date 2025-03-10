@@ -5,11 +5,13 @@ from .models import Class
 from .serializer import ClassSerializer
 import os
 from django.conf import settings
+from rest_framework.permissions import IsAuthenticated
 
 # Create your views here.
 class ClassViewSet(viewsets.ModelViewSet):
     queryset = Class.objects.all()
     serializer_class = ClassSerializer
+    permission_classes = [IsAuthenticated]
 
     # Default create method is overridden to create a folder with the class name
     def create(self, request, *args, **kwargs):
