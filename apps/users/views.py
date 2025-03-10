@@ -3,11 +3,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from django.conf import settings
-import os
-
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import authenticate
 from .models import User
-from .serializer import UserSerializer
+from .serializer import UserSerializer, LoginSerializer
+
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -21,38 +23,38 @@ class UserViewSet(viewsets.ModelViewSet):
         user.set_password(user.password)  # Hash the password
         user.save()
 
-# Folder creation (admin-only)
-class FolderCreateView(APIView):
-    # permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        # if request.user.role.lower() != 'admin':
-        #     return Response(
-        #         {"error": "Only admins can create folders"},
-        #         status=status.HTTP_403_FORBIDDEN
-        #     )
+class SignupView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
 
-        cycle = request.data.get('cycle')
-        year = request.data.get('year')
-        class_name = request.data.get('class_name')
+    def create(self, request, *args, **kwargs):
+        user_data = request.data
+        user_data['role'] = 'student'  # Ensure the role is set to 'student'
+        serializer = self.get_serializer(data=user_data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'user': UserSerializer(user).data,
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_201_CREATED)
 
-        if not all([cycle, year, class_name]):
-            return Response(
-                {"error": "Missing required fields: cycle, year, class_name"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+class LoginView(generics.GenericAPIView):
+    serializer_class = LoginSerializer
 
-        folder_name = f"{cycle}-{year}_Year-Class_{class_name}"
-        folder_path = os.path.join(settings.BASE_DIR, 'training', folder_name)
-
-        try:
-            os.makedirs(folder_path, exist_ok=True)
-            return Response(
-                {"message": f"Folder '{folder_name}' created successfully"},
-                status=status.HTTP_201_CREATED
-            )
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to create folder: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = authenticate(
+            request,
+            email=serializer.validated_data['email'],
+            password=serializer.validated_data['password']
+        )
+        if user is not None:
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'access': str(refresh.access_token),
+                'user': UserSerializer(user).data
+            }, status=status.HTTP_200_OK)
+        return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
