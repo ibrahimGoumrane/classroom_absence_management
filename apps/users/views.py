@@ -1,7 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated , AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -9,17 +9,19 @@ from django.contrib.auth import login, logout
 from django.contrib.auth import authenticate
 from .models import User
 from .serializer import UserSerializer, LoginSerializer
+from .permissions import IsAdminOrOwner
 
 
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated , IsAdminOrOwner]
 
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    
+
     def create(self, request, *args, **kwargs):
         user_data = request.data
         user_data['role'] = 'student'  # Ensure the role is set to 'student'
