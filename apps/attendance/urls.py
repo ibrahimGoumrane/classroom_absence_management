@@ -7,5 +7,5 @@ router.register(r'', AttendanceViewSet)
 
 # URLs
 urlpatterns = [
-    path('/', include(router.urls)),
+    path('', include(router.urls)),
 ]
