@@ -24,7 +24,8 @@ class SignupView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         user_data = request.data
-        user_data['role'] = 'student'  # Ensure the role is set to 'student'
+        if not user_data.get('role'):
+            user_data['role'] = 'student'  # Ensure the role is set to 'student'
         serializer = self.get_serializer(data=user_data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
