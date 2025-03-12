@@ -6,7 +6,8 @@ from rest_framework import status
 from rest_framework import generics, status
 from rest_framework.response import Response
 from django.contrib.auth import login, logout
-from django.contrib.auth import authenticate
+from django.contrib.auth.hashers import check_password
+from django.contrib.auth import get_user_model
 from .models import User
 from .serializer import UserSerializer, LoginSerializer
 from .permissions import IsAdminOrOwner
@@ -40,18 +41,27 @@ class SignupView(generics.CreateAPIView):
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
+
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = authenticate(
-            request,
-            email=serializer.validated_data['email'],
-            password=serializer.validated_data['password']
-        )
-        if user is not None:
+
+        email = serializer.validated_data['email']
+        password = serializer.validated_data['password']
+
+        # Get the user manually
+        User = get_user_model()
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Check password using `check_password`
+        if check_password(password, user.password):
             login(request, user)
             user_data = UserSerializer(user).data
             return Response(user_data, status=status.HTTP_200_OK)
+
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
     
 
