@@ -3,7 +3,7 @@ from .models import Subject
 from apps.teachers.serializer import TeacherSerializer
 
 class SubjectSerializer(serializers.ModelSerializer):
-    teacher = TeacherSerializer()
+    teacher = TeacherSerializer(read_only=True)
     class Meta:
         model = Subject
-        fields = '__all__'
+        fields = ['id', 'name' ,'teacher']

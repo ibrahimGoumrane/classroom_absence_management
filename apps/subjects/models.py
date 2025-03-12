@@ -8,4 +8,4 @@ class Subject(models.Model):
     class Meta:
         db_table = 'subject'  # Custom table name
     def __str__(self):
-        return f"{self.name} ({self.code})"
+        return f"{self.name}"

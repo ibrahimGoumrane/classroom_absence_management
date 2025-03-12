@@ -13,6 +13,7 @@ class TeacherSerializer(serializers.ModelSerializer):
         }}  # Hide user in responses
     def create(self, validated_data):
         user_data = validated_data.pop('user')  # Extract user data
+        user_data['role'] = 'teacher'  # Ensure the role is set to 'teacher'
         serializer = UserSerializer(data=user_data)  # Create User instance
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
