@@ -70,6 +70,7 @@ class StudentViewSet(ModelViewSet):
         teacher = student_serializer.save()
 
         return Response(StudentSerializer(teacher).data, status=status.HTTP_200_OK)
+    
     def destroy(self, request, *args, **kwargs):
         student = self.get_object()  # Get student instance
         user = student.user  # Get associated user
