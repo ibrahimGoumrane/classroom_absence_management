@@ -26,6 +26,20 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'training')
 
 MEDIA_URL = '/'  # 📌 Remove 'media/' prefix (Optional)
 
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+# Celery Beat Configuration
+CELERY_BEAT_SCHEDULE = {
+    'print-hello-every-20-seconds': {
+        'task': 'apps.students.tasks.print_hello',  # Adjust to your task path
+        'schedule': 20,  # 604,800 seconds = 7 days (1 week)
+    },
+}
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -59,6 +73,7 @@ INSTALLED_APPS = [
     'apps.classes',
     'apps.studentimages',
     'django_extensions', # Django Extensions
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
