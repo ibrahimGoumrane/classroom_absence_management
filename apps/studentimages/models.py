@@ -16,7 +16,7 @@ def student_image_upload_path(instance, filename):
 
     if instance.student:
         class_name = instance.student.section_promo.name  # Assuming section_promo is a related field
-        return os.path.join(class_name, str(instance.student.id), new_filename)
+        return os.path.join('training',class_name, str(instance.student.id), new_filename)
     
 
 # Create your models here.

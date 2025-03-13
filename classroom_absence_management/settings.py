@@ -22,9 +22,9 @@ environ.Env.read_env()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-MEDIA_ROOT = os.path.join(BASE_DIR, 'training')
+MEDIA_ROOT = os.path.join(BASE_DIR ,'training')  
 
-MEDIA_URL = '/'  # 📌 Remove 'media/' prefix (Optional)
+MEDIA_URL = 'training/' 
 
 
 # Quick-start development settings - unsuitable for production

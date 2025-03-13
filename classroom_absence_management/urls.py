@@ -29,5 +29,5 @@ urlpatterns = [
     path('api/classes/', include('apps.classes.urls')),
     path('api/images/', include('apps.studentimages.urls')),
 ]
-urlpatterns += static('/', document_root=settings.MEDIA_ROOT)
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

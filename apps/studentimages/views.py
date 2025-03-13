@@ -20,7 +20,7 @@ class UploadStudentImagesView(ModelViewSet):
         user = request.user
 
         if user.role.lower() == 'admin':
-            student_id = request.query_params.get('student')
+            student_id = request.query_params.get('student_id')
             if not student_id:
                 return Response({"error": "student_id parameter is required for admin"}, status=status.HTTP_400_BAD_REQUEST)
             
