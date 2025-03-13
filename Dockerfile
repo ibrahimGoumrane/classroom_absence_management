@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.12-slim
+FROM python:3.9
 
 # Set environment variables to prevent Python from writing .pyc files and buffering output
 ENV PYTHONUNBUFFERED 1
@@ -19,11 +19,6 @@ RUN apt-get update && apt-get install -y \
     libx11-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency list and install Python dependencies
-COPY requirements.txt /app/
-RUN pip install --upgrade pip 
-RUN pip install -r requirements.txt
-
 # Install additional dependencies for face recognition
 RUN pip install --no-cache-dir \
     numpy \
@@ -32,6 +27,13 @@ RUN pip install --no-cache-dir \
     scipy \
     pathlib \
     pickle-mixin
+
+# Copy dependency list and install Python dependencies
+COPY requirements.txt /app/
+RUN pip install --upgrade pip 
+RUN pip install -r requirements.txt
+
+
 
 # Copy the entire application into the container
 COPY . /app/
