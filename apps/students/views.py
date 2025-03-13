@@ -18,7 +18,7 @@ class StudentViewSet(ModelViewSet):
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:  # Allow anyone to view teachers
+        if self.action in ['list', 'retrieve']:  # Allow anyone to view students
             return [AllowAny()]
         return [IsAuthenticated(), IsAdmin()]  # Require admin permissions for create, update, and delete
 
@@ -64,12 +64,12 @@ class StudentViewSet(ModelViewSet):
             user_serializer.is_valid(raise_exception=True)
             user_serializer.save()
 
-        # ✅ Now validate and update the teacher instance
+        # ✅ Now validate and update the student instance
         student_serializer = self.get_serializer(student_instance, data=request.data, partial=True)
         student_serializer.is_valid(raise_exception=True)
-        teacher = student_serializer.save()
+        student = student_serializer.save()
 
-        return Response(StudentSerializer(teacher).data, status=status.HTTP_200_OK)
+        return Response(StudentSerializer(student).data, status=status.HTTP_200_OK)
     
     def destroy(self, request, *args, **kwargs):
         student = self.get_object()  # Get student instance
