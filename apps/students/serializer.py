@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student, StudentImage
+from .models import Student
 from apps.users.serializer import UserSerializer
 
 
@@ -20,10 +20,7 @@ class StudentSerializer(serializers.ModelSerializer):
         teacher = Student.objects.create(user=user, **validated_data)  # Create Teacher instance
         return teacher
     
-class StudentImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = StudentImage
-        fields = '__all__'
+
 
  
         

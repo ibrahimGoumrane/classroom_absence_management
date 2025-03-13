@@ -21,7 +21,11 @@ environ.Env.read_env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 MEDIA_ROOT = os.path.join(BASE_DIR, 'training')
+
+MEDIA_URL = '/'  # 📌 Remove 'media/' prefix (Optional)
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -53,6 +57,7 @@ INSTALLED_APPS = [
     'apps.subjects',
     'apps.attendance',
     'apps.classes',
+    'apps.studentimages',
     'django_extensions', # Django Extensions
 ]
 
