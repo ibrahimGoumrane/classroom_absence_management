@@ -1,8 +1,10 @@
+version: '3.8'
+
 services:
   db:
     image: mysql:latest
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
@@ -17,9 +19,7 @@ services:
       - app_network
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile  # Explicitly specify the Dockerfile
+    build: .
     volumes:
       - .:/app
     ports:
@@ -30,7 +30,7 @@ services:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=db  # Use 'db' as the service name for the database
+      - DB_HOST=${DB_HOST}  # Use 'db' as the service name
       - DB_PORT=${DB_PORT}
     env_file:
       - .env  
