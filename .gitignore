@@ -1,3 +1,14 @@
 __pycache__/
 .env
 training/*
+
+# Celery Beat schedule file (default name)
+celerybeat-schedule
+celerybeat-schedule.*
+
+# Celery logs (if you use --logfile)
+celery*.log
+
+# Celery worker temporary files
+*.pid
+celeryd.*
