@@ -81,6 +81,8 @@ pip install celery django-celery-beat redis
 3. **Update `myproject/myproject/settings.py`**:
 
    ```python
+   from celery.schedules import crontab
+
    # Celery Configuration
    CELERY_BROKER_URL = 'redis://localhost:6379/0'
    CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
@@ -90,16 +92,20 @@ pip install celery django-celery-beat redis
 
    # Celery Beat Schedule (every 20 seconds)
    CELERY_BEAT_SCHEDULE = {
-       'print-hello-every-20-seconds': {
-           'task': 'apps.students.tasks.print_hello',
-           'schedule': 20.0,  # 20 seconds
-       },
+   	'print-hello-every-20-seconds': {
+   		'task': 'apps.students.tasks.print_hello',
+   		'schedule': 20,  # Every 20 seconds
+   	},
+   	'print-time-scheduled': {
+   		'task': 'apps.students.tasks.print_time',
+   		'schedule': crontab(hour=23, minute=59, day_of_week=6),  # Every Saturday at 23:59
+   	},
    }
 
    # Add Celery Beat to Apps
    INSTALLED_APPS = [
-       ...
-       'django_celery_beat',
+   		...
+   		'django_celery_beat',
    ]
    ```
 
@@ -107,14 +113,19 @@ pip install celery django-celery-beat redis
 
 1. **Create `students/tasks.py`**:
 
-   ```python
-   from celery import shared_task
+```python
+from celery import shared_task
 
-   @shared_task
-   def print_hello():
-       print("Hello from Celery!")
-       return "Task completed"
-   ```
+@shared_task
+def print_hello():
+    print("Hello from Celery!")
+    return "Task completed"
+
+@shared_task
+def print_time():
+    print("Ran at a scheduled time!")
+    return "Task completed"
+```
 
 ## Step 5: Apply Migrations
 
