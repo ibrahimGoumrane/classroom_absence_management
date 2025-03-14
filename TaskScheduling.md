@@ -2,7 +2,18 @@
 
 This guide walks you through setting up a Django project with Celery to schedule a simple task that prints a message every 20 seconds. It uses Redis as the message broker, running in Docker, and includes all necessary dependency installations and environment configurations. The instructions are tailored for Windows but include notes for Linux/macOS where differences apply.
 
----
+## Table of Contents
+
+- [Step 1: Install Dependencies](#step-1-install-dependencies)
+- [Step 2: Set Up Redis in Docker](#step-2-set-up-redis-in-docker)
+- [Step 3: Configure Celery in Django](#step-3-configure-celery-in-django)
+- [Step 4: Define the Task](#step-4-define-the-task)
+- [Step 5: Apply Migrations](#step-5-apply-migrations)
+- [Step 6: Test the Setup](#step-6-test-the-setup)
+- [Step 7: Verify Environment](#step-7-verify-environment)
+- [Troubleshooting](#troubleshooting)
+- [Running the Project](#running-the-project)
+- [Notes](#notes)
 
 ## Step 1: Install Dependencies
 
@@ -13,8 +24,6 @@ pip install celery django-celery-beat redis
 - `celery`: Core task queue.
 - `django-celery-beat`: Periodic task scheduling.
 - `redis`: Python client for Redis (for testing).
-
----
 
 ## Step 2: Set Up Redis in Docker
 
@@ -45,8 +54,6 @@ pip install celery django-celery-beat redis
      docker exec -it redis-server redis-cli ping
      ```
      - Expected: `PONG`
-
----
 
 ## Step 3: Configure Celery in Django
 
@@ -96,8 +103,6 @@ pip install celery django-celery-beat redis
    ]
    ```
 
----
-
 ## Step 4: Define the Task
 
 1. **Create `students/tasks.py`**:
@@ -111,16 +116,12 @@ pip install celery django-celery-beat redis
        return "Task completed"
    ```
 
----
-
 ## Step 5: Apply Migrations
 
 1. **Run Migrations** (for Celery Beat database tables):
    ```powershell
    python manage.py migrate
    ```
-
----
 
 ## Step 6: Test the Setup
 
@@ -175,8 +176,6 @@ pip install celery django-celery-beat redis
      [2025-03-13 22:00:20,100: INFO/MainProcess] Hello from Celery!
      ```
 
----
-
 ## Step 7: Verify Environment
 
 - **Project Structure**:
@@ -207,8 +206,6 @@ pip install celery django-celery-beat redis
   redis>=4.0
   ```
 
----
-
 ## Troubleshooting
 
 - **Redis Not Running**:
@@ -223,8 +220,6 @@ pip install celery django-celery-beat redis
 - **Port Conflict**:
   - Change port: `docker run -d --name redis-server -p 6380:6379 redis`
   - Update `CELERY_BROKER_URL` to `redis://localhost:6380/0`.
-
----
 
 ## Running the Project
 
@@ -242,8 +237,6 @@ pip install celery django-celery-beat redis
    ```
 
 - **Output**: "Hello from Celery!" printed every 20 seconds in the worker terminal.
-
----
 
 ## Notes
 
