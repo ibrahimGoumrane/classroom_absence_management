@@ -46,6 +46,18 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # Use SMTP for real emails
+EMAIL_HOST = 'smtp.gmail.com'  # Example: Gmail SMTP server
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = env.str('MY_EMAIL_ADDRESS')  # Your Gmail address
+EMAIL_HOST_PASSWORD = env.str('MY_EMAIL_APP_PASSWORD')  # App-specific password (not regular password)
+DEFAULT_FROM_EMAIL = 'Classroom Face Reco'
+
+# Admin Email (replace with actual admin email)
+ADMINS = [('Admin Name', env.str('ADMIN_TEST_EMAIL'))]
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
