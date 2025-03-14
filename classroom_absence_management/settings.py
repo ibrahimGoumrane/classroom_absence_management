@@ -14,6 +14,7 @@ from pathlib import Path
 import environ
 import os
 from datetime import timedelta
+from celery.schedules import crontab
 
 # Load environment variables from .env file
 env = environ.Env()
@@ -36,8 +37,12 @@ CELERY_RESULT_SERIALIZER = 'json'
 # Celery Beat Configuration
 CELERY_BEAT_SCHEDULE = {
     'print-hello-every-20-seconds': {
-        'task': 'apps.students.tasks.print_hello',  # Adjust to your task path
-        'schedule': 20,  # 604,800 seconds = 7 days (1 week)
+        'task': 'apps.students.tasks.print_hello',
+        'schedule': 20,  # Every 20 seconds
+    },
+    'print-time-scheduled': {
+        'task': 'apps.students.tasks.print_time',
+        'schedule': crontab(hour=23, minute=59, day_of_week=6),  # Every Saturday at 23:59
     },
 }
 
