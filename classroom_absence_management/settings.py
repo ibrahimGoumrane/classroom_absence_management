@@ -50,7 +50,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',  # Django REST Framework
     'rest_framework.authtoken',  # Token authentication
-    'rest_framework_simplejwt',
     'apps.users',
     'apps.students',
     'apps.teachers',
@@ -158,7 +157,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
-    ]
+    ],
+    'EXCEPTION_HANDLER': 'apps.users.exception.custom_exception_handler'
 }
 
 
