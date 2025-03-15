@@ -1,6 +1,5 @@
 from django.db import models
 from apps.users.models import User
-
 class Teacher(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="teacher_profile")
