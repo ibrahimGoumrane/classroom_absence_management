@@ -7,5 +7,5 @@ router.register(r'', ClassViewSet)
 
 # URLs
 urlpatterns = [
-    path('/', include(router.urls)),
+    path('', include(router.urls)),
 ]
