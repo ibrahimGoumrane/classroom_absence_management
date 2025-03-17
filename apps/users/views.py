@@ -23,6 +23,14 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated , IsAdminOrOwner]
 
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user  # Get the currently authenticated user
+        user_data = UserSerializer(user).data  # Serialize user data
+        return Response(user_data, status=status.HTTP_200_OK)
+
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer

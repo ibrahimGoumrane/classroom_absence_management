@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
 
 # Custom User Manager
@@ -8,6 +8,7 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError("The Email field must be set")
         email = self.normalize_email(email)
+        print("Extra fields:", extra_fields)
         user = self.model(
             email=email, 
             firstName=firstName, 
@@ -20,10 +21,15 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, firstName, lastName, password=None, **extra_fields):
+        if 'role' in extra_fields:
+            del extra_fields['role']
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
         return self.create_user(email, firstName, lastName, password, role='admin', **extra_fields)
 
 # Custom User Model
-class User(AbstractBaseUser):
+class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
         ('student', 'Student'),
         ('teacher', 'Teacher'),
@@ -35,6 +41,8 @@ class User(AbstractBaseUser):
     firstName = models.CharField(max_length=100)
     lastName = models.CharField(max_length=100)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='student')
+    is_staff = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
