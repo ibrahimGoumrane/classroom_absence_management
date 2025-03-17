@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: mysql:latest
@@ -14,26 +12,83 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     env_file:
-      - .env  
+      - .env
+    networks:
+      - app_network
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379" # Expose Redis port
+    volumes:
+      - redis_data:/data # Persist Redis data
     networks:
       - app_network
 
   web:
     build: .
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
     ports:
       - "8000:8000"
     depends_on:
       - db
+      - redis
     environment:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}  # Use 'db' as the service name
+      - DB_HOST=${DB_HOST} # Use 'db' as the service name
       - DB_PORT=${DB_PORT}
+      - CELERY_BROKER_URL=redis://redis:6379/0 # Redis as broker
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     env_file:
-      - .env  
+      - .env
+    networks:
+      - app_network
+
+  celery_worker:
+    build: .
+    command: celery -A classroom_absence_management worker -l info
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    env_file:
+      - .env
+    networks:
+      - app_network
+
+  celery_beat:
+    build: .
+    command: celery -A classroom_absence_management beat -l info
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    env_file:
+      - .env
     networks:
       - app_network
 
@@ -43,3 +98,4 @@ networks:
 
 volumes:
   mysql_data:
+  redis_data:
