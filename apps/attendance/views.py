@@ -4,8 +4,8 @@ from jsonschema import ValidationError
 from  rest_framework import viewsets
 from sqlalchemy import Transaction
 
-from classroom_absence_management.apps.students.models import Student
-from classroom_absence_management.apps.subjects.models import Subject
+from apps.students.models import Student
+from apps.subjects.models import Subject
 from .models import Attendance
 from .serializer import AttendanceSerializer
 from rest_framework.permissions import IsAuthenticated , AllowAny
