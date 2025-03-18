@@ -1,9 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import StudentViewSet
+from .views import UploadStudentImagesView
 # Router
 router = DefaultRouter()
-router.register(r'', StudentViewSet)  # This correctly prefixes student-related endpoints
+router.register(r'', UploadStudentImagesView, basename="student-images")  # Fix images URL
 
 # URLs
 urlpatterns = [

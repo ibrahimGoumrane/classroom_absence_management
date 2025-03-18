@@ -21,7 +21,11 @@ environ.Env.read_env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-MEDIA_ROOT = os.path.join(BASE_DIR, 'training')
+
+MEDIA_ROOT = os.path.join(BASE_DIR ,'training')  
+
+MEDIA_URL = 'training/' 
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -46,13 +50,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',  # Django REST Framework
     'rest_framework.authtoken',  # Token authentication
-    'rest_framework_simplejwt',
     'apps.users',
     'apps.students',
     'apps.teachers',
     'apps.subjects',
     'apps.attendance',
     'apps.classes',
+    'apps.studentimages',
     'django_extensions', # Django Extensions
 ]
 
@@ -153,7 +157,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
-    ]
+    ],
+    'EXCEPTION_HANDLER': 'apps.users.exception.custom_exception_handler'
 }
 
 

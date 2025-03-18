@@ -11,6 +11,10 @@ from django.contrib.auth import get_user_model
 from .models import User
 from .serializer import UserSerializer, LoginSerializer
 from .permissions import IsAdminOrOwner
+from apps.students.serializer import StudentSerializer
+from apps.classes.models import Class
+from django.conf import settings
+import os
 
 
 
@@ -19,17 +23,37 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated , IsAdminOrOwner]
 
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user  # Get the currently authenticated user
+        user_data = UserSerializer(user).data  # Serialize user data
+        return Response(user_data, status=status.HTTP_200_OK)
+
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
     def create(self, request, *args, **kwargs):
-        user_data = request.data
-        if not user_data.get('role'):
-            user_data['role'] = 'student'  # Ensure the role is set to 'student'
-        serializer = self.get_serializer(data=user_data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        # Create user
+        Student_serializer = StudentSerializer(data=request.data)
+        Student_serializer.is_valid(raise_exception=True)
+        student = Student_serializer.save()
+        user = student.user
+        # Get section_promo (class name) from request data
+        class_id = student.section_promo.id
+        if not class_id:
+            return Response({"error": "section_promo (class ID) is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            class_instance = Class.objects.get(id=class_id)
+        except Class.DoesNotExist:
+            return Response({"error": "Class not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Create folder with user ID inside the section_promo directory
+        folder_path = os.path.join(settings.MEDIA_ROOT, class_instance.name, str(student.id))
+        os.makedirs(folder_path, exist_ok=True)
         if user is not None:
             login(request, user)
             user_data = UserSerializer(user).data

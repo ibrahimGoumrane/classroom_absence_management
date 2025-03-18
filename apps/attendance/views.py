@@ -8,6 +8,8 @@ from apps.students.models import Student
 from apps.subjects.models import Subject
 from .models import Attendance
 from .serializer import AttendanceSerializer
+from rest_framework.permissions import IsAuthenticated , AllowAny
+from apps.users.permissions import IsTeacher , IsAdmin
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework import status
@@ -20,6 +22,10 @@ import os
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:  # Allow anyone to view teachers
+            return [AllowAny()]
+        return [IsAuthenticated(), IsTeacher() or IsAdmin()]  # ✅ Fixed instantiation
 
 class TestRequest(viewsets.ViewSet):
     def get(self, request):
