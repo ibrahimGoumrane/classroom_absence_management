@@ -9,6 +9,6 @@ router.register(r'', AttendanceViewSet)
 # URLs
 urlpatterns = [
     path('', include(router.urls)),
-    path('process', AttendanceProcessView.as_view({'get': 'get'}), name='process'),
+    path('process/', AttendanceProcessView.as_view({'post': 'post'}), name='process'),
     path('confirm/', AttendanceConfirmView.as_view({'post': 'post'}), name='confirm'),
 ]
