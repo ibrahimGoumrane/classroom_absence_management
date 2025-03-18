@@ -4,8 +4,8 @@ from jsonschema import ValidationError
 from  rest_framework import viewsets
 from sqlalchemy import Transaction
 
-from classroom_absence_management.apps.students.models import Student
-from classroom_absence_management.apps.subjects.models import Subject
+from apps.students.models import Student
+from apps.subjects.models import Subject
 from .models import Attendance
 from .serializer import AttendanceSerializer
 from rest_framework import viewsets
@@ -21,18 +21,21 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
 
-class AttendanceProcessView(viewsets.ViewSet):
+class TestRequest(viewsets.ViewSet):
     def get(self, request):
-        """
-        GET - Attendance Processing
-        Endpoint: /api/attendance/process
-        Processes student images for attendance checking without storing in DB
-        """
+        return Response(
+            {"message": "Test request successful"},
+            status=status.HTTP_200_OK
+        )
+
+
+class AttendanceProcessView(viewsets.ViewSet):
+    def post(self, request):
         try:
-            # Get request parameters
+            # Get request parameters from the body
             images = request.FILES.getlist('images[]')
-            promo_section = request.query_params.get('promo_section')
-            date = request.query_params.get('date')
+            promo_section = request.data.get('promo_section')
+            date = request.data.get('date')
 
             # Validate input parameters
             if not all([images, promo_section, date]):
@@ -68,9 +71,9 @@ class AttendanceProcessView(viewsets.ViewSet):
                         # Recognize faces in the image
                         recognized_people = face_handler.recognize_faces(
                             temp_path,
-                            'cp',  # Assuming 'cp' is a constant prefix in your path structure
-                            promo_section_parts[0],  # year
-                            promo_section_parts[1]   # section
+                            'cp',
+                            promo_section_parts[0].lower(),  # year
+                            promo_section_parts[1].lower()   # section
                         )
 
                         # Process recognition results
@@ -79,7 +82,7 @@ class AttendanceProcessView(viewsets.ViewSet):
 
                     except imageException as e:
                         return Response(
-                            {"error": f"Image processing failed: {str(e)}"},
+                            {"error": f"Image processing failed: {str(e)}. Please upload a clearer image."},
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
@@ -92,15 +95,16 @@ class AttendanceProcessView(viewsets.ViewSet):
                     all_students.append(student_name)
 
             # Create final attendance list
-            final_attendance = {}
-            for student in all_students:
-                final_attendance[student] = "present" if student in attendance_results else "absent"
+            final_attendance = [
+                {"name": student, "status": "present" if student in attendance_results else "absent"}
+                for student in all_students
+            ]
 
             # Return response
             return Response({
                 "date": date,
                 "promo_section": promo_section,
-                "attendance": final_attendance
+                "students": final_attendance
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -108,6 +112,7 @@ class AttendanceProcessView(viewsets.ViewSet):
                 {"error": f"An unexpected error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
 class AttendanceConfirmView(viewsets.ViewSet):    
     def post(self, request):
             """

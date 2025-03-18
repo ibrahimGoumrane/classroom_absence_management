@@ -102,20 +102,12 @@ class FaceRecognitionHandler:
             Returns the relative path and the file name
         
         """
-
-        heirarcy_list=filepath.parent.name.split('_')  
-        # File name in form of (Lastname,Firstname) at the end of the path
-        filename='_'.join(heirarcy_list[-2:]) + '_encodings'
-        # I want all the elements except the last two elements
-        relative_path_list=[str(DEFAULT_ENCODINGS_PATH)] + heirarcy_list[:-2]
-        # Joining the elements to get the relative path
-        relative_path = '/'.join(relative_path_list)
-
-        # make it lower case
-        relative_path = relative_path.lower()
-
-        # Returning the relative path and the file name
-        return relative_path ,filename
+        heirarcy_list = filepath.parent.name.split('_')
+        filename = '_'.join(heirarcy_list[-2:]) + '_encodings'
+        # Force year and section if hierarchy is shallow
+        relative_path_list = [str(DEFAULT_ENCODINGS_PATH), "cp", "2023", "a"]
+        relative_path = '/'.join(relative_path_list).lower()
+        return relative_path, filename
 
     def __is_new_encoding(self, unique_encodings, new_encoding, threshold=0.5):
         """
@@ -221,15 +213,15 @@ class FaceRecognitionHandler:
 
 
 
-face_handler = FaceRecognitionHandler()
+# face_handler = FaceRecognitionHandler()
 # face_handler.encode_known_faces()
 
 
 
-training_path = Path("validation/mandy.jpg")
+# training_path = Path("validation/mandy.jpg")
 # training_path = Path("validation/ben_afflek_2.jpg")
 # training_path = Path("./validation/elon.jpg")
 
 
 
-print(face_handler.recognize_faces(training_path , 'cp', '1', 'A'))
+# print(face_handler.recognize_faces(training_path , 'cp', '1', 'A'))
