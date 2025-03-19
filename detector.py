@@ -94,19 +94,23 @@ class FaceRecognitionHandler:
         return loaded_encodings
 
 
-    def __encoding_location(self,filepath:Path):
+    def __encoding_location(self, filepath: Path, subpath: list):
         """
-        This function is used to get the relative path and the file name
+        This function determines the relative path and filename for storing encodings.
         Args:
             filepath: The path of the file
-            Returns the relative path and the file name
-        
+            subpath: A list of subdirectories under DEFAULT_ENCODINGS_PATH (e.g., ['class', '2024', 'b'])
+        Returns:
+            tuple: (relative_path, filename)
         """
+        # Generate the filename from the parent directory name
         heirarcy_list = filepath.parent.name.split('_')
         filename = '_'.join(heirarcy_list[-2:]) + '_encodings'
-        # Force year and section if hierarchy is shallow
-        relative_path_list = [str(DEFAULT_ENCODINGS_PATH), "cp", "2023", "a"]
+
+        # Construct the relative path using DEFAULT_ENCODINGS_PATH and the provided subpath
+        relative_path_list = [str(DEFAULT_ENCODINGS_PATH)] + subpath
         relative_path = '/'.join(relative_path_list).lower()
+
         return relative_path, filename
 
     def __is_new_encoding(self, unique_encodings, new_encoding, threshold=0.5):
@@ -123,44 +127,44 @@ class FaceRecognitionHandler:
                 return False
         return True
     
-    def encode_known_faces(self):
+    def encode_known_faces(self, subpath: list = None):
         """
-        This function is used to encode the known faces
+        This function encodes the known faces and saves them to a specified subpath.
+        Args:
+            subpath: A list of subdirectories under DEFAULT_ENCODINGS_PATH (e.g., ['class', '2024', 'b'])
+                     If None, defaults to a flat structure under DEFAULT_ENCODINGS_PATH.
         """
+        # Default to a flat structure if no subpath is provided
+        if subpath is None:
+            subpath = []
 
         # Iterating through the training path
         for filepath in DEFAULT_TRAINING_PATH.glob("*/*"):
-
-            # creating the heirarchy
-            relative_path , filename=self.__encoding_location(filepath)
+            # Get the relative path and filename with the provided subpath
+            relative_path, filename = self.__encoding_location(filepath, subpath)
 
             if not os.path.exists(relative_path): 
-                # if the demo_folder directory is not present  
-                # then create it. 
                 os.makedirs(relative_path)    
 
-            # Loading the image    
+            # Load the image    
             image = face_recognition.load_image_file(filepath)
 
-            # Getting the face encodings
-            face_encodings_old = self.__handle_encodings(relative_path , filename, show_file_error=False)
+            # Handle existing encodings
+            face_encodings_old = self.__handle_encodings(relative_path, filename, show_file_error=False)
             
-            # Getting the face locations
+            # Get face locations and encodings
             face_locations = face_recognition.face_locations(image, model=self.model)
-            
-            # Getting the face encodings
             face_encodings = face_recognition.face_encodings(image, face_locations)
 
             if face_encodings_old['encodings']:
-                
                 for encoding in face_encodings:
                     if self.__is_new_encoding(face_encodings_old['encodings'], encoding):
                         face_encodings_old['encodings'].append(encoding)
-                face_encodings=face_encodings_old['encodings']
+                face_encodings = face_encodings_old['encodings']
 
-            # Saving the encodings
+            # Save the encodings
             name_encodings = {"names": [filename], "encodings": face_encodings}
-            self.__save_encodings(relative_path , filename ,name_encodings)
+            self.__save_encodings(relative_path, filename, name_encodings)
 
 
     def recognize_faces(self,image_location , *args ):
@@ -211,17 +215,12 @@ class FaceRecognitionHandler:
         return present_people
 
 
+# Example usage
+face_handler = FaceRecognitionHandler()
 
+# Encode faces with a custom subpath
+face_handler.encode_known_faces(subpath=['IAGI_PROMO_2027'])
 
-# face_handler = FaceRecognitionHandler()
-# face_handler.encode_known_faces()
-
-
-
-# training_path = Path("validation/mandy.jpg")
-# training_path = Path("validation/ben_afflek_2.jpg")
-# training_path = Path("./validation/elon.jpg")
-
-
-
-# print(face_handler.recognize_faces(training_path , 'cp', '1', 'A'))
+# Recognize faces using the same subpath
+training_path = Path("validation/elon.jpg")
+print(face_handler.recognize_faces(training_path, 'IAGI_PROMO_2027'))
