@@ -28,15 +28,19 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated(), IsTeacher() or IsAdmin()]  # ✅ Fixed instantiation
 
 class TestRequest(viewsets.ViewSet):
-    def get(self, request):
+    permission_classes = [AllowAny]
+    def post(self, request):
         return Response(
             {"message": "Test request successful"},
             status=status.HTTP_200_OK
         )
 
-
 class AttendanceProcessView(viewsets.ViewSet):
     def post(self, request):
+        """
+        POST endpoint to process attendance by recognizing faces in uploaded images.
+        Expects 'images[]', 'promo_section', and 'date' in the request body.
+        """
         try:
             # Get request parameters from the body
             images = request.FILES.getlist('images[]')
@@ -50,13 +54,8 @@ class AttendanceProcessView(viewsets.ViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Split promo_section into components (e.g., "2023_A" -> ["2023", "A"])
-            promo_section_parts = promo_section.split('_')
-            if len(promo_section_parts) < 2:
-                return Response(
-                    {"error": "Invalid promo_section format. Expected format: 'year_section'"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            # Use promo_section directly as the_classe (e.g., "PROMO_IAGI_2026")
+            the_classe = promo_section
 
             # Initialize face recognition handler
             face_handler = FaceRecognitionHandler()
@@ -75,12 +74,7 @@ class AttendanceProcessView(viewsets.ViewSet):
 
                     try:
                         # Recognize faces in the image
-                        recognized_people = face_handler.recognize_faces(
-                            temp_path,
-                            'cp',
-                            promo_section_parts[0].lower(),  # year
-                            promo_section_parts[1].lower()   # section
-                        )
+                        recognized_people = face_handler.recognize_faces(temp_path, the_classe)
 
                         # Process recognition results
                         for person in recognized_people:
@@ -93,7 +87,7 @@ class AttendanceProcessView(viewsets.ViewSet):
                         )
 
             # Get all expected students from encodings directory
-            encodings_path = Path("encoding/cp") / promo_section_parts[0].lower() / promo_section_parts[1].lower()
+            encodings_path = Path("encoding") / the_classe
             all_students = []
             if encodings_path.exists():
                 for encoding_file in encodings_path.glob('*_encodings.pkl'):
@@ -111,6 +105,67 @@ class AttendanceProcessView(viewsets.ViewSet):
                 "date": date,
                 "promo_section": promo_section,
                 "students": final_attendance
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"error": f"An unexpected error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class GenerateEncodingsView(viewsets.ViewSet):
+    def post(self, request):
+        """
+        POST endpoint to generate encodings for a specific promo_section.
+        Expects 'promo_section' (e.g., 'PROMO_IAGI_2026') in the request body.
+        """
+        try:
+            # Get promo_section from the request body
+            promo_section = request.data.get('promo_section')
+
+            # Validate input parameter
+            if not promo_section:
+                return Response(
+                    {"error": "Missing required parameter: promo_section is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Use promo_section directly as the_classe (e.g., "PROMO_IAGI_2026")
+            the_classe = promo_section
+
+            # Check if the corresponding training directory exists
+            training_path = Path("training") / the_classe
+            if not training_path.exists():
+                return Response(
+                    {"error": f"No training data found for {the_classe}. Ensure images are in training/{the_classe}/student_id/"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Initialize face recognition handler
+            face_handler = FaceRecognitionHandler()
+
+            # Generate encodings
+            try:
+                face_handler.encode_known_faces()
+            except Exception as e:
+                return Response(
+                    {"error": f"Failed to generate encodings: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # Verify that encodings were generated
+            encodings_path = Path("encoding") / the_classe
+            generated_files = list(encodings_path.glob('*_encodings.pkl')) if encodings_path.exists() else []
+            if not generated_files:
+                return Response(
+                    {"error": f"No encodings were generated for {the_classe}. Ensure images contain detectable faces."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            return Response({
+                "message": f"Encodings generated successfully for {the_classe}",
+                "encoding_path": str(encodings_path),
+                "generated_files": [file.name for file in generated_files]
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
