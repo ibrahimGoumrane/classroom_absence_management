@@ -46,7 +46,7 @@ class UploadStudentImagesView(ModelViewSet):
         user = request.user
         images = request.FILES.getlist('images')
         # use the id of the user to get the student
-        student = Student.objects.get(user=user)
+        # student = Student.objects.get(user=user)
 
         if user.role.lower() == 'admin':
             student_id = request.data.get('student_id')
