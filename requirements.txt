@@ -10,4 +10,3 @@ celery>=5.4.0
 django-celery-beat>=2.7.0
 redis>=5.2.1
 jsonschema>=3.2.0
-sqlalchemy>=1.4.25
