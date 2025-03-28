@@ -4,6 +4,8 @@ import pickle
 from collections import Counter
 from scipy.spatial.distance import euclidean
 import face_recognition
+from apps.students.models import Student
+from apps.studentimages.models import StudentImage
 
 DEFAULT_ENCODINGS_PATH = Path("encoding")
 DEFAULT_TRAINING_PATH = Path('training')
@@ -13,9 +15,11 @@ DEFAULT_TRAINING_PATH.mkdir(exist_ok=True)
 DEFAULT_ENCODINGS_PATH.mkdir(exist_ok=True)
 DEFAULT_VALIDATION_PATH.mkdir(exist_ok=True)
 
+
 class imageException(Exception):
     def __init__(self, errorImage) -> None:
         super(imageException, self).__init__(errorImage)
+
 
 class FaceRecognitionHandler:
     def __init__(self, encodings_location=DEFAULT_ENCODINGS_PATH):
@@ -24,11 +28,7 @@ class FaceRecognitionHandler:
 
     def __recognize_face(self, unknown_encoding, reference_encoding):
         boolean_matches = face_recognition.compare_faces(reference_encoding['encodings'], unknown_encoding)
-        votes = Counter(
-            name
-            for match, name in zip(boolean_matches, reference_encoding["names"])
-            if match
-        )
+        votes = Counter(name for match, name in zip(boolean_matches, reference_encoding["names"]) if match)
         if votes:
             name = votes.most_common(1)[0][0]
             ele_len = name.rfind('_encodings')
@@ -64,44 +64,60 @@ class FaceRecognitionHandler:
 
     def encode_known_faces(self):
         """
-        Encodes known faces and saves them in the structure: encoding/the_classe/student_id_encodings.pkl
-        The structure is derived from the training directory: training/the_classe/student_id/
+        Encodes faces from new images (is_encoded=False) in the StudentImage model and saves them in the structure:
+        encoding/class_name/student_id_encodings.pkl. Uses the Django StudentImage model to track processed images.
         """
-        # Iterate through the training path: training/the_classe/student_id/
-        for filepath in DEFAULT_TRAINING_PATH.glob("*/*/*"):
-            # Extract the_classe and student_id from the directory structure
-            the_classe = filepath.parent.parent.name  # e.g., "class_2024_b"
-            student_id = filepath.parent.name         # e.g., "student_123"
+        # Find students with at least one unencoded image
+        students_with_new_images = Student.objects.filter(images__is_encoded=False).distinct()
 
-            # Construct the relative path: encoding/the_classe/
-            relative_path = os.path.join(DEFAULT_ENCODINGS_PATH, the_classe)
+        encoded_image_ids = []
+        for student in students_with_new_images:
+            # Get class name from student's section_promo
+            the_classe = student.section_promo.name
+            student_id = str(student.id)
 
-            # Create the directory if it doesn't exist
+            # Construct the encoding path: encoding/class_name/
+            relative_path = os.path.join(self.encodings_location, the_classe)
+
+            # Create directory if it doesn’t exist
             if not os.path.exists(relative_path):
                 os.makedirs(relative_path)
 
-            # Use student_id as the base for the filename
+            # Define the encoding filename
             filename = f"{student_id}_encodings"
 
-            # Load the image
-            image = face_recognition.load_image_file(filepath)
-
-            # Handle existing encodings for this student
+            # Load existing encodings for this student (empty if none exist)
             face_encodings_old = self.__handle_encodings(relative_path, filename, show_file_error=False)
 
-            # Get face locations and encodings
-            face_locations = face_recognition.face_locations(image, model=self.model)
-            face_encodings = face_recognition.face_encodings(image, face_locations)
+            # Get all unencoded images for this student
+            new_images = student.images.filter(is_encoded=False)
 
-            if face_encodings_old['encodings']:
+            for student_image in new_images:
+                # Load the image from its full path
+                image_path = student_image.image.path
+                image = face_recognition.load_image_file(image_path)
+
+                # Detect face locations and generate encodings
+                face_locations = face_recognition.face_locations(image, model=self.model)
+                face_encodings = face_recognition.face_encodings(image, face_locations)
+
+                # Add new encodings to the existing list
                 for encoding in face_encodings:
                     if self.__is_new_encoding(face_encodings_old['encodings'], encoding):
                         face_encodings_old['encodings'].append(encoding)
-                face_encodings = face_encodings_old['encodings']
 
-            # Save the encodings
-            name_encodings = {"names": [filename], "encodings": face_encodings}
+                # Mark the image as encoded
+                student_image.is_encoded = True
+                student_image.save()
+                
+                # Add the image ID to the list
+                encoded_image_ids.append(student_image.id)
+
+            # Save the updated encodings for the student
+            name_encodings = {"names": [filename], "encodings": face_encodings_old['encodings']}
             self.__save_encodings(relative_path, filename, name_encodings)
+            
+            return encoded_image_ids
 
     def recognize_faces(self, image_location, the_classe):
         """
