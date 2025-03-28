@@ -24,9 +24,9 @@ environ.Env.read_env(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-MEDIA_ROOT = os.path.join(BASE_DIR ,'training')  
+MEDIA_ROOT = os.path.join(BASE_DIR, 'training')
 
-MEDIA_URL = 'training/' 
+MEDIA_URL = 'training/'
 
 # Celery Configuration
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
@@ -41,9 +41,9 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.studentimages.tasks.print_hello',
         'schedule': 20,  # Every 20 seconds
     },
-    'print-time-scheduled': {
-        'task': 'apps.studentimages.tasks.print_time',
-        'schedule': crontab(hour=23, minute=59, day_of_week=6),  # Every Saturday at 23:59
+    'encode-missing-faces-every-saturday': {
+        'task': 'apps.studentimages.tasks.encode_new_images_task',
+        'schedule': crontab(hour=23, minute=59, day_of_week=6),
     },
 }
 
@@ -54,10 +54,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = env.str('MY_EMAIL_ADDRESS')  # Your Gmail address
 EMAIL_HOST_PASSWORD = env.str('MY_EMAIL_APP_PASSWORD')  # App-specific password (not regular password)
-DEFAULT_FROM_EMAIL = 'Classroom Face Reco'
-
-# Admin Email (replace with actual admin email)
-ADMINS = [('Admin Name', env.str('ADMIN_TEST_EMAIL'))]
+DEFAULT_FROM_EMAIL = 'Classroom Face Reco'  # The name that will appear in the email
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -89,7 +86,7 @@ INSTALLED_APPS = [
     'apps.attendance',
     'apps.classes',
     'apps.studentimages',
-    'django_extensions', # Django Extensions
+    'django_extensions',  # Django Extensions
     'django_celery_beat',
 ]
 
@@ -191,7 +188,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
-    'EXCEPTION_HANDLER': 'apps.users.exception.custom_exception_handler'
+    'EXCEPTION_HANDLER': 'apps.users.exception.custom_exception_handler',
 }
 
 
