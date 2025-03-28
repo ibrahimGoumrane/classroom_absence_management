@@ -28,8 +28,10 @@ services:
   web:
     build: .
     command: >
-      sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000"
+      sh -c "./wait-for-it.sh db:${DB_PORT} --timeout=60 -- echo 'DB is up' &&
+            python manage.py makemigrations &&
+            python manage.py migrate &&
+            python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
     ports:

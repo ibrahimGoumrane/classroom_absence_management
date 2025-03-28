@@ -33,13 +33,14 @@ COPY requirements.txt /app/
 RUN pip install --upgrade pip 
 RUN pip install -r requirements.txt
 
-
-
-# Copy the entire application into the container
+# Copy the entire application (including wait-for-it.sh) into the container
 COPY . /app/
+
+# Make wait-for-it.sh executable
+RUN chmod +x /app/wait-for-it.sh
 
 # Expose port 8000 for Django
 EXPOSE 8000
 
-# Command to run the Django application
+# Command to run the Django application (overridden in docker-compose.yml)
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
