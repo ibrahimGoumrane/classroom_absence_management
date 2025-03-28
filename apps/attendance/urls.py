@@ -1,5 +1,4 @@
 from django.urls import path, include
-from regex import T
 from rest_framework.routers import DefaultRouter
 from .views import AttendanceViewSet , AttendanceProcessView, AttendanceConfirmView, TestRequest, GenerateEncodingsView
 # Router
