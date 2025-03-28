@@ -7,12 +7,6 @@ from apps.users.models import User
 from apps.studentimages.models import StudentImage
 
 
-@shared_task
-def print_hello():
-    print("Hello from Celery!")
-    return "Task completed"
-
-
 def send_notification_to_admins(subject, plain_message, html_message=None):
     # Fetch emails of active admins
     admin_emails = User.objects.filter(role='admin', is_active=True).values_list('email', flat=True)

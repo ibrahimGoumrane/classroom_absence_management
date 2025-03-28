@@ -37,13 +37,9 @@ CELERY_RESULT_SERIALIZER = 'json'
 
 # Celery Beat Configuration
 CELERY_BEAT_SCHEDULE = {
-    'print-hello-every-20-seconds': {
-        'task': 'apps.studentimages.tasks.print_hello',
-        'schedule': 20,  # Every 20 seconds
-    },
     'encode-missing-faces-every-saturday': {
         'task': 'apps.studentimages.tasks.encode_new_images_task',
-        'schedule': crontab(hour=23, minute=59, day_of_week=6),
+        'schedule': crontab(hour=23, minute=59, day_of_week=6),  # Every Saturday at 11:59 PM
     },
 }
 
