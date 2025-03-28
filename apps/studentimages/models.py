@@ -17,13 +17,13 @@ def student_image_upload_path(instance, filename):
     if instance.student:
         class_name = instance.student.section_promo.name  # Assuming section_promo is a related field
         return os.path.join(class_name, str(instance.student.id), new_filename)
-    
 
-# Create your models here.
+
 class StudentImage(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to=student_image_upload_path, max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    is_encoded = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'student_image'
@@ -31,7 +31,7 @@ class StudentImage(models.Model):
         verbose_name_plural = 'Student Images'
 
     def __str__(self):
-        return f"Image for {self.student.user.email} in {self.section_promo}"
+        return f"Image for {self.student.user.email} in {self.student.section_promo.name}"
 
     def delete(self, *args, **kwargs):
         if self.image:
