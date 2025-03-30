@@ -25,13 +25,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated(), IsTeacher() or IsAdmin()]  # ✅ Fixed instantiation
 
-class TestRequest(viewsets.ViewSet):
-    permission_classes = [AllowAny]
-    def post(self, request):
-        return Response(
-            {"message": "Test request successful"},
-            status=status.HTTP_200_OK
-        )
 
 class AttendanceProcessView(viewsets.ViewSet):
     def post(self, request):
