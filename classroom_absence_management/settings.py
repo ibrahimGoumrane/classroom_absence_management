@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     'apps.attendance',
     'apps.classes',
     'apps.studentimages',
+    'apps.departments',
     'django_extensions',  # Django Extensions
     'django_celery_beat',
 ]
