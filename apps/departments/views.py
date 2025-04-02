@@ -5,7 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from apps.users.permissions import IsAdmin
 from rest_framework.permissions import AllowAny
 from django.db.models import Count
-from rest_framework.response import Response  # <-- Add this import
+from rest_framework.response import Response
+from rest_framework.decorators import action
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
@@ -20,12 +21,21 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         """
         Override the default queryset to annotate each department with the teacher count.
         """
-        return Department.objects.annotate(teacher_count=Count('teachers'))
+        return Department.objects.all()
 
     def list(self, request, *args, **kwargs):
         """
-        Overriding list view to include teacher count for each department.
+        Default list view for departments, without teacher count.
         """
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)  # <-- Return the response with serialized data
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='with-teacher-count')
+    def departments_with_teacher_count(self, request, *args, **kwargs):
+        """
+        Custom endpoint that includes teacher count for each department.
+        """
+        queryset = Department.objects.annotate(teacher_count=Count('teachers'))
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
