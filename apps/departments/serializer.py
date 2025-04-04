@@ -6,4 +6,4 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Department
-        fields = ['id', 'name', 'teacherCount']  # Include teacher_count in the fields
+        fields = ['id', 'name', 'description', 'teacherCount']  # Include teacher_count in the fields
