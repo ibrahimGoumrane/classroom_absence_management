@@ -5,8 +5,11 @@ from .models import Class
 from .serializer import ClassSerializer
 import os
 from django.conf import settings
+from django.db.models import Count
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
 from apps.users.permissions import IsAdmin
+from apps.students.serializer import StudentSerializer
 from rest_framework.permissions import AllowAny
 import shutil
 
@@ -47,3 +50,26 @@ class ClassViewSet(viewsets.ModelViewSet):
         folder_path = os.path.join(settings.MEDIA_ROOT, class_instance.name)
         shutil.rmtree(folder_path)
         return super().destroy(request, *args, **kwargs)
+    
+    @action(detail=False, methods=['get'], url_path='with-student-count')
+    def classes_with_student_counts(self, request, *args, **kwargs):
+        """
+        Custom endpoint that includes student count for each department.
+        """
+        queryset = Class.objects.annotate(studentCount=Count('students'))
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'], url_path='students')
+    def get_class_students(self, request, pk=None):
+        """
+        Returns the list of students belonging to the given class.
+        """
+        try:
+            cls = Class.objects.get(pk=pk)
+        except Class.DoesNotExist:
+            return Response({'detail': 'Class not found.'}, status=404)
+
+        students = cls.students.all()
+        serializer = StudentSerializer(students, many=True)
+        return Response(serializer.data)
