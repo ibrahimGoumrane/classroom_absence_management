@@ -1,10 +1,13 @@
 from rest_framework import serializers
 from .models import Student
 from apps.users.serializer import UserSerializer
+from apps.studentimages.serializer import StudentImageSerializer
 
 
 class StudentSerializer(serializers.ModelSerializer):
     user = UserSerializer()
+    # Here add also the lastest uploaded image
+    latest_image = serializers.SerializerMethodField()
     class Meta:
         model = Student
         fields = '__all__'
@@ -20,7 +23,11 @@ class StudentSerializer(serializers.ModelSerializer):
         teacher = Student.objects.create(user=user, **validated_data)  # Create Teacher instance
         return teacher
     
-
-
- 
-        
+    def get_latest_image(self, obj):
+        """
+        Returns the most recently uploaded image for a student
+        """
+        latest_image = obj.studentimage_set.order_by('-created_at').first()
+        if latest_image:
+            return StudentImageSerializer(latest_image).data
+        return None

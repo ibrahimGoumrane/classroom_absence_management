@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from apps.users.permissions import IsAdmin
 from apps.students.serializer import StudentSerializer
+from apps.studentimages.serializer import StudentImageSerializer
 from rest_framework.permissions import AllowAny
 import shutil
 
