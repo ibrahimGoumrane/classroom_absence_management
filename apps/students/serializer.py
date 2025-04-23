@@ -27,7 +27,7 @@ class StudentSerializer(serializers.ModelSerializer):
         """
         Returns the most recently uploaded image for a student
         """
-        latest_image = obj.studentimage_set.order_by('-created_at').first()
+        latest_image = obj.images.order_by('-uploaded_at').first()
         if latest_image:
             return StudentImageSerializer(latest_image).data
         return None
