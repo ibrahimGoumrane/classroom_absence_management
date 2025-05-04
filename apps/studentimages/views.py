@@ -63,10 +63,12 @@ class UploadStudentImagesView(ModelViewSet):
             if not all([images]):
                 return Response({"error": "Missing required fields:  images"}, status=status.HTTP_400_BAD_REQUEST)
             
-
+        created_images = []
         for image in images:
-            StudentImage.objects.create(student=student,image=image)
-        return Response({"message": "Images uploaded successfully"}, status=status.HTTP_201_CREATED)
+            created_image = StudentImage.objects.create(student=student, image=image)
+            created_images.append(created_image)  
+        serializer = StudentImageSerializer(created_images, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def destroy(self, request, *args, **kwargs):
         image = self.get_object()
