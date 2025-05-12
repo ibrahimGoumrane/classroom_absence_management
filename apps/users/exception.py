@@ -26,15 +26,16 @@ def custom_exception_handler(exc, context):
     """
     Custom error response format:
     {
-        "error": {
-            "email": "This email is already registered.",
-            "password": "Password must be at least 8 characters long."
-        }
+        "error": "This email is already registered."
     }
     """
     response = exception_handler(exc, context)
 
     if response is not None and isinstance(response.data, dict):
-        response.data = {"error": flatten_errors(response.data)}  # Apply flattening
+        flattened_errors = flatten_errors(response.data)
+        if flattened_errors:
+            # Get the first error message only
+            first_error = next(iter(flattened_errors.values()))
+            response.data = {"error": first_error}
 
     return response
