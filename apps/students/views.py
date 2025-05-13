@@ -13,6 +13,9 @@ from apps.users.models import User
 from apps.classes.models import Class
 from rest_framework import serializers
 import shutil
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from apps.attendance.serializer import AttendanceSerializer
 # Create your views here.
 class StudentViewSet(ModelViewSet):
     queryset = Student.objects.all()
@@ -92,3 +95,32 @@ class StudentViewSet(ModelViewSet):
         return Response({"message": "Student and associated user deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_student_attendance(request, id):
+    try:
+        student = Student.objects.get(id=id)
+    except Student.DoesNotExist:
+        return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    attendances = student.attendance_records.all()
+    
+    # Add filters based on query parameters
+    subject_id = request.query_params.get('subject_id')
+    if subject_id:
+        attendances = attendances.filter(subject_id=subject_id)
+    
+    date_from = request.query_params.get('date_from')
+    if date_from:
+        attendances = attendances.filter(date__gte=date_from)
+    
+    date_to = request.query_params.get('date_to')
+    if date_to:
+        attendances = attendances.filter(date__lte=date_to)
+    
+    status_param = request.query_params.get('status')
+    if status_param:
+        attendances = attendances.filter(status=status_param)
+    
+    attendances_data = AttendanceSerializer(attendances, many=True).data
+    return Response(attendances_data, status=status.HTTP_200_OK)

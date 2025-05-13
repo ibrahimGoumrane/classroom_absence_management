@@ -29,6 +29,13 @@ class ClassViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated(), IsAdmin()]  # Require admin permissions for create, update, and delete
 
+    def get_queryset(self):
+        """
+        Override the default queryset to include student count on all retrievals
+        """
+        return Class.objects.annotate(studentCount=Count('students'))
+
+
     # Default create method is overridden to create a folder with the class name
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
@@ -67,18 +74,19 @@ class ClassViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['get'], url_path='with-student-count')
-    def class_with_student_count(self, request, pk=None):
-        """
-        Returns the specified class with its student count.
-        """
-        try:
-            cls = Class.objects.annotate(studentCount=Count('students')).get(pk=pk)
-        except Class.DoesNotExist:
-            return Response({'detail': 'Class not found.'}, status=404)
+    # @action(detail=True, methods=['get'], url_path='with-student-count')
+    # def class_with_student_count(self, request, pk=None):
+    #     """
+    #     Returns the specified class with its student count.
+    #     """
+    #     try:
+    #         cls = Class.objects.get(pk=pk)
+    #         cls.studentCount = cls.students.count()
+    #     except Class.DoesNotExist:
+    #         return Response({'detail': 'Class not found.'}, status=404)
 
-        serializer = self.get_serializer(cls)
-        return Response(serializer.data)
+    #     serializer = self.get_serializer(cls)
+    #     return Response(serializer.data)
     
     @action(detail=True, methods=['get'], url_path='students')
     def get_class_students(self, request, pk=None):
