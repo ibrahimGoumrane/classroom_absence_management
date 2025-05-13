@@ -10,9 +10,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from apps.users.permissions import IsAdmin
 from apps.students.serializer import StudentSerializer
-from apps.studentimages.serializer import StudentImageSerializer
 from rest_framework.permissions import AllowAny
 import shutil
+from apps.teachers.models import Teacher
+from apps.attendance.models import Attendance
+from rest_framework.decorators import api_view, permission_classes
+from apps.subjects.models import Subject
+from apps.subjects.serializer import SubjectSerializer
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from apps.attendance.serializer import AttendanceSerializer
 
 # Create your views here.
 class ClassViewSet(viewsets.ModelViewSet):
@@ -87,3 +93,57 @@ class ClassViewSet(viewsets.ModelViewSet):
         students = cls.students.all()
         serializer = StudentSerializer(students, many=True)
         return Response(serializer.data)
+    
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_class_attendance(request , id):
+    # Check if the method is GET AND get the id 
+    if request.method != 'GET':
+         return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    try:
+        section_promo = Class.objects.get(id=id)
+    except Class.DoesNotExist:
+        return Response({"error": "User is not a class"}, status=status.HTTP_403_FORBIDDEN)
+
+    # Get all subjects taught by this class
+    subjects = Subject.objects.filter(section_promo=section_promo)
+
+    # Get all attendance records for these subjects
+    attendance_records = Attendance.objects.filter(subject__in=subjects)
+    
+    # You can add filters for specific date ranges, students, etc.
+    subject_id = request.query_params.get('subject_id')
+    if subject_id:
+        attendance_records = attendance_records.filter(subject_id=subject_id)
+    
+    date_from = request.query_params.get('date_from')
+    if date_from:
+        attendance_records = attendance_records.filter(date__gte=date_from)
+    
+    date_to = request.query_params.get('date_to')
+    if date_to:
+        attendance_records = attendance_records.filter(date__lte=date_to)
+    
+    serializer = AttendanceSerializer(attendance_records, many=True)
+    
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_class_subjects(request ,id):
+    # Check if the method is GET AND get the id
+    if request.method != 'GET':
+        return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    try:
+        section_promo = Class.objects.get(id=id)
+    except Class.DoesNotExist:
+        return Response({"error": "User is not a class"}, status=status.HTTP_403_FORBIDDEN)
+
+    # Get all subjects belonging to this class
+    subjects = Subject.objects.filter(section_promo=section_promo)
+    serializer = SubjectSerializer(subjects, many=True)
+
+    return Response(serializer.data)

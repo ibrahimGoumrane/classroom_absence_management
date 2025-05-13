@@ -5,6 +5,12 @@ from .serializer import SubjectSerializer
 from rest_framework.permissions import IsAuthenticated
 from apps.users.permissions import IsTeacher , IsAdmin
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+from apps.teachers.models import Teacher
+from apps.attendance.models import Attendance
+from rest_framework.decorators import api_view, permission_classes
+
 # Create your views here.
 class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.all()
@@ -22,3 +28,4 @@ class SubjectViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         # Ensure the teacher cannot be changed
         serializer.save(teacher=self.request.user.teacher_profile)
+

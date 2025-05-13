@@ -8,4 +8,5 @@ router.register(r'', SubjectViewSet)
 # URLs
 urlpatterns = [
     path('', include(router.urls)),
+
 ]
