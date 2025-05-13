@@ -9,7 +9,11 @@ from rest_framework import status
 from apps.users.serializer import UserSerializer
 from apps.users.models import User
 from rest_framework import serializers
-
+from apps.subjects.models import Subject
+from apps.subjects.serializer import SubjectSerializer
+from apps.attendance.models import Attendance
+from apps.attendance.serializer import AttendanceSerializer
+from rest_framework.decorators import api_view, permission_classes
 
 
 # Create your views here.
@@ -63,3 +67,58 @@ class TeacherViewSet(viewsets.ModelViewSet):
         user.delete()  # Delete the associated user
 
         return Response({"message": "Teacher deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+    
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_teacher_subjects(request ,id):
+    # Check if the method is GET AND get the id 
+    if request.method != 'GET':
+        return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    try:
+        teacher = Teacher.objects.get(id=id)
+    except Teacher.DoesNotExist:
+        return Response({"error": "User is not a teacher"}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get all subjects taught by this teacher
+    subjects = Subject.objects.filter(teacher=teacher)
+    serializer = SubjectSerializer(subjects, many=True)
+
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_teacher_attendance(request , id):
+    # Check if the method is GET AND get the id 
+    if request.method != 'GET':
+         return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    try:
+        teacher = Teacher.objects.get(id=id)
+    except Teacher.DoesNotExist:
+        return Response({"error": "User is not a teacher"}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get all subjects taught by this teacher
+    subjects = Subject.objects.filter(teacher=teacher)
+    
+    # Get all attendance records for these subjects
+    attendance_records = Attendance.objects.filter(subject__in=subjects)
+    
+    # You can add filters for specific date ranges, students, etc.
+    subject_id = request.query_params.get('subject_id')
+    if subject_id:
+        attendance_records = attendance_records.filter(subject_id=subject_id)
+    
+    date_from = request.query_params.get('date_from')
+    if date_from:
+        attendance_records = attendance_records.filter(date__gte=date_from)
+    
+    date_to = request.query_params.get('date_to')
+    if date_to:
+        attendance_records = attendance_records.filter(date__lte=date_to)
+    
+    serializer = AttendanceSerializer(attendance_records, many=True)
+    
+    return Response(serializer.data)
