@@ -12,7 +12,7 @@ from rest_framework import serializers
 from apps.subjects.models import Subject
 from apps.subjects.serializer import SubjectReadSerializer
 from apps.attendance.models import Attendance
-from apps.attendance.serializer import AttendanceSerializer
+from apps.attendance.serializer import AttendanceReadSerializer
 from rest_framework.decorators import api_view, permission_classes
 
 
@@ -119,6 +119,6 @@ def get_teacher_attendance(request , id):
     if date_to:
         attendance_records = attendance_records.filter(date__lte=date_to)
     
-    serializer = AttendanceSerializer(attendance_records, many=True)
+    serializer = AttendanceReadSerializer(attendance_records, many=True)
     
     return Response(serializer.data)

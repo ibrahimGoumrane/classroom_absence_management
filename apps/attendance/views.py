@@ -6,7 +6,7 @@ from  rest_framework import viewsets
 from apps.students.models import Student
 from apps.subjects.models import Subject
 from .models import Attendance
-from .serializer import AttendanceSerializer
+from .serializer import AttendanceReadSerializer, AttendanceWriteSerializer
 from rest_framework.permissions import IsAuthenticated , AllowAny
 from apps.users.permissions import IsTeacherOrAdmin, TeacherObjectOwnerOrAdmin, TeacherOwnObjects , IsAdmin ,IsTeacher
 from rest_framework import viewsets
@@ -19,15 +19,19 @@ import tempfile
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
-    serializer_class = AttendanceSerializer
+    def get_serializer_class(self):
+        """Use different serializers for read/write operations"""
+        if self.action in ['create', 'update', 'partial_update']:
+            return AttendanceWriteSerializer
+        return AttendanceReadSerializer
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:  # Allow anyone to view teachers
             return [AllowAny()]
         # For create require authentication
         elif self.action == 'create':
-            return [IsAuthenticated() , IsTeacherOrAdmin()]  # ✅ Fixed instantiation
+            return [IsAuthenticated() , IsTeacherOrAdmin()] 
         # For  update, and delete actions, require either admin or teacher permissions
-        return [IsAuthenticated(), TeacherObjectOwnerOrAdmin()]  # ✅ Fixed instantiation
+        return [IsAuthenticated(), TeacherObjectOwnerOrAdmin()]  
 
 
 class AttendanceProcessView(viewsets.ViewSet):

@@ -18,7 +18,7 @@ from rest_framework.decorators import api_view, permission_classes
 from apps.subjects.models import Subject
 from apps.subjects.serializer import SubjectReadSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from apps.attendance.serializer import AttendanceSerializer
+from apps.attendance.serializer import AttendanceReadSerializer
 
 # Create your views here.
 class ClassViewSet(viewsets.ModelViewSet):
@@ -128,7 +128,7 @@ def get_class_attendance(request , id):
     if date_to:
         attendance_records = attendance_records.filter(date__lte=date_to)
     
-    serializer = AttendanceSerializer(attendance_records, many=True)
+    serializer = AttendanceReadSerializer(attendance_records, many=True)
     
     return Response(serializer.data)
 

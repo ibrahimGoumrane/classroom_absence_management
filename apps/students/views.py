@@ -15,7 +15,7 @@ from rest_framework import serializers
 import shutil
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from apps.attendance.serializer import AttendanceSerializer
+from apps.attendance.serializer import AttendanceReadSerializer
 # Create your views here.
 class StudentViewSet(ModelViewSet):
     queryset = Student.objects.all()
@@ -122,5 +122,5 @@ def get_student_attendance(request, id):
     if status_param:
         attendances = attendances.filter(status=status_param)
     
-    attendances_data = AttendanceSerializer(attendances, many=True).data
+    attendances_data = AttendanceReadSerializer(attendances, many=True).data
     return Response(attendances_data, status=status.HTTP_200_OK)
