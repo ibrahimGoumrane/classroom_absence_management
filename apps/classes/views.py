@@ -16,7 +16,7 @@ from apps.teachers.models import Teacher
 from apps.attendance.models import Attendance
 from rest_framework.decorators import api_view, permission_classes
 from apps.subjects.models import Subject
-from apps.subjects.serializer import SubjectSerializer
+from apps.subjects.serializer import SubjectReadSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from apps.attendance.serializer import AttendanceSerializer
 
@@ -28,12 +28,6 @@ class ClassViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:  # Allow anyone to view teachers
             return [AllowAny()]
         return [IsAuthenticated(), IsAdmin()]  # Require admin permissions for create, update, and delete
-
-    def get_queryset(self):
-        """
-        Override the default queryset to include student count on all retrievals
-        """
-        return Class.objects.annotate(studentCount=Count('students'))
 
 
     # Default create method is overridden to create a folder with the class name
@@ -152,6 +146,6 @@ def get_class_subjects(request ,id):
 
     # Get all subjects belonging to this class
     subjects = Subject.objects.filter(section_promo=section_promo)
-    serializer = SubjectSerializer(subjects, many=True)
+    serializer = SubjectReadSerializer(subjects, many=True)
 
     return Response(serializer.data)

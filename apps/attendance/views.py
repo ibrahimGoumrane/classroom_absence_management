@@ -8,7 +8,7 @@ from apps.subjects.models import Subject
 from .models import Attendance
 from .serializer import AttendanceSerializer
 from rest_framework.permissions import IsAuthenticated , AllowAny
-from apps.users.permissions import IsTeacher , IsAdmin
+from apps.users.permissions import IsTeacherOrAdmin, TeacherObjectOwnerOrAdmin, TeacherOwnObjects , IsAdmin ,IsTeacher
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework import status
@@ -23,7 +23,11 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:  # Allow anyone to view teachers
             return [AllowAny()]
-        return [IsAuthenticated(), IsTeacher() or IsAdmin()]  # ✅ Fixed instantiation
+        # For create require authentication
+        elif self.action == 'create':
+            return [IsAuthenticated() , IsTeacherOrAdmin()]  # ✅ Fixed instantiation
+        # For  update, and delete actions, require either admin or teacher permissions
+        return [IsAuthenticated(), TeacherObjectOwnerOrAdmin()]  # ✅ Fixed instantiation
 
 
 class AttendanceProcessView(viewsets.ViewSet):

@@ -10,7 +10,7 @@ from apps.users.serializer import UserSerializer
 from apps.users.models import User
 from rest_framework import serializers
 from apps.subjects.models import Subject
-from apps.subjects.serializer import SubjectSerializer
+from apps.subjects.serializer import SubjectReadSerializer
 from apps.attendance.models import Attendance
 from apps.attendance.serializer import AttendanceSerializer
 from rest_framework.decorators import api_view, permission_classes
@@ -85,7 +85,7 @@ def get_teacher_subjects(request ,id):
     
     # Get all subjects taught by this teacher
     subjects = Subject.objects.filter(teacher=teacher)
-    serializer = SubjectSerializer(subjects, many=True)
+    serializer = SubjectReadSerializer(subjects, many=True)
 
     return Response(serializer.data)
 

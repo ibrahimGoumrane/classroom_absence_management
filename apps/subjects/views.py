@@ -1,31 +1,29 @@
 from django.shortcuts import render
 from rest_framework import viewsets
+
 from .models import Subject
-from .serializer import SubjectSerializer
+from .serializer import SubjectReadSerializer ,SubjectWriteSerializer
 from rest_framework.permissions import IsAuthenticated
-from apps.users.permissions import IsTeacher , IsAdmin
+from apps.users.permissions import IsTeacherOrAdmin, TeacherObjectOwnerOrAdmin
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from apps.teachers.models import Teacher
-from apps.attendance.models import Attendance
-from rest_framework.decorators import api_view, permission_classes
+from apps.classes.models import Class
 
 # Create your views here.
 class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.all()
-    serializer_class = SubjectSerializer
+    def get_serializer_class(self):
+        """Use different serializers for read/write operations"""
+        if self.action in ['create', 'update', 'partial_update']:
+            return SubjectWriteSerializer
+        return SubjectReadSerializer    
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:  # Allow anyone to view teachers
             return [AllowAny()]
-        return [IsAuthenticated(), IsTeacher() or IsAdmin()]  # Require admin permissions for create, update, and delete
-
-
-    def perform_create(self, serializer):
-        # Set the teacher to the currently authenticated user
-        serializer.save(teacher=self.request.user.teacher_profile)
-
-    def perform_update(self, serializer):
-        # Ensure the teacher cannot be changed
-        serializer.save(teacher=self.request.user.teacher_profile)
-
+        # For create require authentication
+        elif self.action == 'create':
+            return [IsAuthenticated() , IsTeacherOrAdmin()]  # ✅ Fixed instantiation
+        # For  update, and delete actions, require either admin or teacher permissions
+        return [IsAuthenticated(), TeacherObjectOwnerOrAdmin()]  # ✅ Fixed instantiation
