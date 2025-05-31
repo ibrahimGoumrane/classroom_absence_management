@@ -1,20 +1,29 @@
+from argparse import Action
 import datetime
 from django.db import transaction
 from jsonschema import ValidationError
 from  rest_framework import viewsets
 
+from apps import attendance
 from apps.students.models import Student
 from apps.subjects.models import Subject
 from .models import Attendance
 from .serializer import AttendanceReadSerializer, AttendanceWriteSerializer
 from rest_framework.permissions import IsAuthenticated , AllowAny
-from apps.users.permissions import IsTeacherOrAdmin, TeacherObjectOwnerOrAdmin, TeacherOwnObjects , IsAdmin ,IsTeacher
+from apps.users.permissions import IsTeacherOrAdmin, TeacherObjectOwnerOrAdmin 
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework import status
 from detector import FaceRecognitionHandler, imageException
 from pathlib import Path
 import tempfile
+from rest_framework.decorators import action
+from django.db.models import Count
+from django.utils import timezone
+from django.db.models import Case, When, F, ExpressionWrapper, fields
+from django.db.models.functions import Cast # For potential float conversion
+
+
 # Create your views here.
 
 class AttendanceViewSet(viewsets.ModelViewSet):
@@ -32,7 +41,72 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated() , IsTeacherOrAdmin()] 
         # For  update, and delete actions, require either admin or teacher permissions
         return [IsAuthenticated(), TeacherObjectOwnerOrAdmin()]  
+    @action(detail=False, methods=['GET'], url_path='attendance-last-30-days')
+    def get_attendance_last_30_days(self, request):
+        """
+        Returns daily attendance counts and presence rates for the last 30 days in the format:
+        [{ "date": "Jan 30", "attendance": 90, "presence_rate": 0.85 }, ...]
+        """
+        today_date = datetime.date.today()
 
+        naive_start_datetime = datetime.datetime.combine(today_date - datetime.timedelta(days=29), datetime.time.min)
+        start_datetime_aware = timezone.make_aware(naive_start_datetime)
+
+        naive_end_datetime = datetime.datetime.combine(today_date, datetime.time.max)
+        end_datetime_aware = timezone.make_aware(naive_end_datetime)
+
+        attendance_records = Attendance.objects.filter(date__range=[start_datetime_aware, end_datetime_aware])
+
+        daily_counts_and_rates = (
+            attendance_records
+            .values('date__date') # Group by the date part of the datetime field
+            .annotate(
+                # Count total attendance records for the day (present + absent + others)
+                total_observations=Count('id'),
+                
+                # Count observations where status is 'present'
+                present_count=Count(
+                    Case(
+                        When(status='present', then=1),
+                        output_field=fields.IntegerField()
+                    )
+                ),
+            )
+            # Now, annotate again to calculate the attendance rate based on the counts
+            .annotate(  
+                # Calculate attendance rate: present_count / total_observations
+                # Ensure division by zero is handled and result is float
+                attendance=Case(
+                    When(total_observations=0, then=0.0),  # If sum is 0, rate is 0
+                    default=Cast(F('present_count'), output_field=fields.FloatField()) / Cast(F('total_observations'), output_field=fields.FloatField()),
+                    output_field=fields.FloatField()
+                )
+            )
+            # Select only the fields you need for the final output
+            .order_by('date__date') # Order by date to ensure correct loop processing
+        )
+    
+        # Build a dict for quick lookup using date objects as keys
+        attendance_data_dict = {
+            record['date__date']: {
+                "attendance": record['attendance'],
+            }
+            for record in daily_counts_and_rates
+        }
+
+        formatted_data = []
+        for i in range(30):
+            day_iter = start_datetime_aware.date() + datetime.timedelta(days=i)
+            
+            # Get data for the current day from the dictionary
+            day_data = attendance_data_dict.get(day_iter, {"attendance": 0}) # Default values if no records for the day
+
+            formatted_data.append({
+                "date": day_iter.strftime("%b %d"),
+                "attendance": day_data["attendance"] * 100,
+            })
+
+        return Response(formatted_data, status=status.HTTP_200_OK)
 
 class AttendanceProcessView(viewsets.ViewSet):
     def post(self, request):

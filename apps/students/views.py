@@ -16,6 +16,7 @@ import shutil
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from apps.attendance.serializer import AttendanceReadSerializer
+from rest_framework.decorators import action
 # Create your views here.
 class StudentViewSet(ModelViewSet):
     queryset = Student.objects.all()
@@ -93,7 +94,13 @@ class StudentViewSet(ModelViewSet):
             shutil.rmtree(folder_path)  # Recursively delete folder
 
         return Response({"message": "Student and associated user deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-
+    @action(detail=False, methods=['GET'], url_path='total')
+    def get_total_students(self, request):
+        """
+        Returns the total number of students in the system.
+        """
+        total_students = Student.objects.count()
+        return Response({"total": total_students}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

@@ -59,29 +59,6 @@ class ClassViewSet(viewsets.ModelViewSet):
         shutil.rmtree(folder_path)
         return super().destroy(request, *args, **kwargs)
     
-    @action(detail=False, methods=['get'], url_path='with-student-count')
-    def classes_with_student_counts(self, request, *args, **kwargs):
-        """
-        Custom endpoint that includes student count for each department.
-        """
-        queryset = Class.objects.annotate(studentCount=Count('students'))
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-    
-    # @action(detail=True, methods=['get'], url_path='with-student-count')
-    # def class_with_student_count(self, request, pk=None):
-    #     """
-    #     Returns the specified class with its student count.
-    #     """
-    #     try:
-    #         cls = Class.objects.get(pk=pk)
-    #         cls.studentCount = cls.students.count()
-    #     except Class.DoesNotExist:
-    #         return Response({'detail': 'Class not found.'}, status=404)
-
-    #     serializer = self.get_serializer(cls)
-    #     return Response(serializer.data)
-    
     @action(detail=True, methods=['get'], url_path='students')
     def get_class_students(self, request, pk=None):
         """
@@ -95,7 +72,13 @@ class ClassViewSet(viewsets.ModelViewSet):
         students = cls.students.all()
         serializer = StudentSerializer(students, many=True)
         return Response(serializer.data)
-    
+    @action(detail=False, methods=['GET'], url_path='total')
+    def get_total_classes(self, request, pk=None):
+        """
+        Returns the total number of classes in the system.
+        """
+        total_classes = Class.objects.count()
+        return Response({'total': total_classes}, status=status.HTTP_200_OK) 
 
 
 @api_view(['GET'])
@@ -131,6 +114,8 @@ def get_class_attendance(request , id):
     serializer = AttendanceReadSerializer(attendance_records, many=True)
     
     return Response(serializer.data)
+
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
