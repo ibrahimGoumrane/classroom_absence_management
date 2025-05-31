@@ -6,10 +6,6 @@ from .serializer import SubjectReadSerializer ,SubjectWriteSerializer
 from rest_framework.permissions import IsAuthenticated
 from apps.users.permissions import IsTeacherOrAdmin, TeacherObjectOwnerOrAdmin
 from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework import status
-from apps.teachers.models import Teacher
-from apps.classes.models import Class
 
 # Create your views here.
 class SubjectViewSet(viewsets.ModelViewSet):
