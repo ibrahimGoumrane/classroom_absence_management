@@ -108,6 +108,158 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         return Response(formatted_data, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['GET'], url_path='attendance-week')
+    def get_attendance_week(self, request):
+        """
+        Returns the attendance for the current week in the format:
+        [{ "date": "Mon", "attendance": 90}, ...] 
+        """
+        # First get the start and end of the current week
+        today_date = datetime.date.today()
+        start_of_week_naive = datetime.datetime.combine(today_date - datetime.timedelta(days=today_date.weekday()) , datetime.time.min)
+        end_of_week_naive = datetime.datetime.combine(start_of_week_naive + datetime.timedelta(days=6), datetime.time.max)
+
+        start_of_week = timezone.make_aware(start_of_week_naive)
+        end_of_week = timezone.make_aware(end_of_week_naive)
+
+        # Get attendance records for the current week
+        attendance_records = Attendance.objects.filter(date__range=[start_of_week, end_of_week])
+        
+        # Group by date and calculate attendance
+        daily_counts_and_rates = (
+            attendance_records
+            .values('date__date') # Group by the date part of the datetime field
+            .annotate(
+                # Count total attendance records for the day (present + absent + others)
+                total_observations=Count('id'),
+                
+                # Count observations where status is 'present'
+                present_count=Count(
+                    Case(
+                        When(status='present', then=1),
+                        output_field=fields.IntegerField()
+                    )
+                ),
+            )
+            # Now, annotate again to calculate the attendance rate based on the counts
+            .annotate(  
+                # Calculate attendance rate: present_count / total_observations
+                # Ensure division by zero is handled and result is float
+                attendance=Case(
+                    When(total_observations=0, then=0.0),  # If sum is 0, rate is 0
+                    default=Cast(F('present_count'), output_field=fields.FloatField()) / Cast(F('total_observations'), output_field=fields.FloatField()),
+                    output_field=fields.FloatField()
+                )
+            )
+            # Select only the fields you need for the final output
+            .order_by('date__date') # Order by date to ensure correct loop processing
+        )
+    
+        # Build a dict for quick lookup using date objects as keys
+        attendance_data_dict = {
+            record['date__date']: {
+                "attendance": record['attendance'],
+            }
+            for record in daily_counts_and_rates
+        }
+
+        formatted_data = []
+        for i in range(7):
+            day_iter = start_of_week.date() + datetime.timedelta(days=i)
+            
+            # Get data for the current day from the dictionary
+            day_data = attendance_data_dict.get(day_iter, {"attendance": 0}) # Default values if no records for the day
+
+            formatted_data.append({
+                "date": day_iter.strftime("%a"),  # Format as abbreviated weekday name (e.g., "Mon")
+                "attendance": day_data["attendance"] * 100,
+            })
+
+        return Response(formatted_data, status=status.HTTP_200_OK)
+
+    # Know i want to get attendance records each day in the current week across different hour ranges (e.g., 8-10, 10-12, etc.)
+    @action(detail=False, methods=['GET'], url_path='attendance-hourly-week')
+    def get_attendance_hourly_week(self, request):
+        """
+        Returns attendance records for each day of the current week across different hour ranges.
+        The data is structured to show attendance patterns throughout the day for each weekday.
+        Response format:
+        [
+            {
+                "day": "Mon",
+                "date": "2025-06-02",
+                "hourly_data": [
+                    {"hour_range": "8-10", "attendance": 85.5},
+                    {"hour_range": "10-12", "attendance": 92.3},
+                    {"hour_range": "12-14", "attendance": 78.9},
+                    {"hour_range": "14-16", "attendance": 88.7},
+                    {"hour_range": "16-18", "attendance": 75.2}
+                ]
+            },
+            ...
+        ]
+        """
+        # Define the hour ranges we want to track
+        hour_ranges = [
+            {"start": 8, "end": 10, "label": "8:00 - 10:00"},
+            {"start": 10, "end": 12, "label": "10:00 - 12:00"},
+            {"start": 12, "end": 14, "label": "12:00 - 14:00 (Break)"},
+            {"start": 14, "end": 16, "label": "14:00 - 16:00"},
+            {"start": 16, "end": 18, "label": "16:00 - 18:00"}
+        ]
+        
+        # First get the start and end of the current week
+        today_date = datetime.date.today()
+        start_of_week_naive = datetime.datetime.combine(today_date - datetime.timedelta(days=today_date.weekday()), datetime.time.min)
+        end_of_week_naive = datetime.datetime.combine(start_of_week_naive + datetime.timedelta(days=6), datetime.time.max)
+        
+        start_of_week = timezone.make_aware(start_of_week_naive)
+        end_of_week = timezone.make_aware(end_of_week_naive)
+        
+        # Get attendance records for the current week
+        attendance_records = Attendance.objects.filter(date__range=[start_of_week, end_of_week])
+        
+        # Prepare the week data structure
+        week_data = []
+        for day_offset in range(7):
+            current_day = start_of_week.date() + datetime.timedelta(days=day_offset)
+            day_data = {
+                "day": current_day.strftime("%a"),  # Abbreviated day name (Mon, Tue, etc.)
+                "date": current_day.strftime("%Y-%m-%d"),
+                "hourly_data": []
+            }
+            
+            # Calculate attendance for each hour range
+            for hour_range in hour_ranges:
+                # Define time range for this hour block
+                range_start_naive = datetime.datetime.combine(current_day, datetime.time(hour=hour_range["start"]))
+                range_end_naive = datetime.datetime.combine(current_day, datetime.time(hour=hour_range["end"]))
+                
+                range_start = timezone.make_aware(range_start_naive)
+                range_end = timezone.make_aware(range_end_naive)
+                
+                # Filter attendance records for this time range
+                time_range_records = attendance_records.filter(date__range=[range_start, range_end])
+                
+                # Calculate attendance rate for this time range
+                total_records = time_range_records.count()
+                present_records = time_range_records.filter(status='present').count()
+                
+                # Calculate attendance percentage (avoid division by zero)
+                attendance_rate = 0
+                if total_records > 0:
+                    attendance_rate = (present_records / total_records) * 100
+                
+                # Add hour range data
+                day_data["hourly_data"].append({
+                    "hour_range": hour_range["label"],
+                    "attendance": round(attendance_rate, 1)  # Round to 1 decimal place
+                })
+            
+            week_data.append(day_data)
+        
+        return Response(week_data, status=status.HTTP_200_OK)
+
 class AttendanceProcessView(viewsets.ViewSet):
     def post(self, request):
         """
