@@ -1,6 +1,7 @@
 from argparse import Action
 import datetime
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 from jsonschema import ValidationError
 from  rest_framework import viewsets
 
@@ -40,7 +41,31 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         elif self.action == 'create':
             return [IsAuthenticated() , IsTeacherOrAdmin()] 
         # For  update, and delete actions, require either admin or teacher permissions
-        return [IsAuthenticated(), TeacherObjectOwnerOrAdmin()]  
+        return [IsAuthenticated(), TeacherObjectOwnerOrAdmin()]
+    
+    @action(detail=False, methods=['get'], url_path='student/(?P<student_id>[^/.]+)')
+    def student_attendance(self, request, student_id=None):
+        """
+        Get all attendance records for a specific student
+        URL: /attendance/student/{id}/
+        """
+        try:
+            # Get the student object or return 404 if not found
+            student = get_object_or_404(Student, id=student_id)
+            
+            # Get all attendance records for this student
+            attendance_records = Attendance.objects.filter(student=student).order_by('-date')
+            
+            # Serialize the data
+            serializer = self.get_serializer(attendance_records, many=True)
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except ValueError:
+            return Response({
+                'error': 'Invalid student ID format'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=False, methods=['GET'], url_path='attendance-last-30-days')
     def get_attendance_last_30_days(self, request):
         """
@@ -260,6 +285,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         
         return Response(week_data, status=status.HTTP_200_OK)
 
+    
 class AttendanceProcessView(viewsets.ViewSet):
     def post(self, request):
         """
