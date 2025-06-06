@@ -8,6 +8,9 @@ from rest_framework.response import Response
 from django.contrib.auth import login, logout
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth import get_user_model
+
+from apps.teachers.models import Teacher
+from apps.teachers.serializer import TeacherSerializer
 from .models import User
 from .serializer import UserSerializer, LoginSerializer
 from .permissions import IsAdminOrOwner
@@ -17,11 +20,11 @@ from django.conf import settings
 import os
 
 
-
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated , IsAdminOrOwner]
+    permission_classes = [IsAuthenticated, IsAdminOrOwner]
+
 
 class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
@@ -30,6 +33,20 @@ class CurrentUserView(APIView):
         user = request.user  # Get the currently authenticated user
         user_data = UserSerializer(user).data  # Serialize user data
         return Response(user_data, status=status.HTTP_200_OK)
+
+
+class CurrentUserTeacherView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        try:
+            teacher = Teacher.objects.get(user=user)
+            teacher_data = TeacherSerializer(teacher).data
+            return Response(teacher_data, status=status.HTTP_200_OK)
+        except Teacher.DoesNotExist:
+            return Response({"error": "No teacher profile found for this user."}, status=status.HTTP_404_NOT_FOUND)
+
 
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -45,12 +62,12 @@ class SignupView(generics.CreateAPIView):
         class_id = student.section_promo.id
         if not class_id:
             return Response({"error": "section_promo (class ID) is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             class_instance = Class.objects.get(id=class_id)
         except Class.DoesNotExist:
             return Response({"error": "Class not found"}, status=status.HTTP_404_NOT_FOUND)
-        
+
         # Create folder with user ID inside the section_promo directory
         folder_path = os.path.join(settings.MEDIA_ROOT, class_instance.name, str(student.id))
         os.makedirs(folder_path, exist_ok=True)
@@ -59,8 +76,6 @@ class SignupView(generics.CreateAPIView):
             user_data = UserSerializer(user).data
             return Response(user_data, status=status.HTTP_201_CREATED)
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-            
-  
 
 
 class LoginView(generics.GenericAPIView):
@@ -87,11 +102,11 @@ class LoginView(generics.GenericAPIView):
             return Response(user_data, status=status.HTTP_200_OK)
 
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-    
+
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         logout(request)
-        return Response(status=status.HTTP_204_NO_CONTENT)    
+        return Response(status=status.HTTP_204_NO_CONTENT)
