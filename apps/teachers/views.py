@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from rest_framework import viewsets
+
+from apps.students.models import Student
 from .models import Teacher
 from .serializer import TeacherSerializer
 from rest_framework.permissions import IsAuthenticated ,AllowAny
@@ -122,3 +124,53 @@ def get_teacher_attendance(request , id):
     serializer = AttendanceReadSerializer(attendance_records, many=True)
     
     return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_teacher_total_subjects(request ,id):
+    # Check if the method is GET AND get the id 
+    if request.method != 'GET':
+        return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    try:
+        teacher = Teacher.objects.get(id=id)
+    except Teacher.DoesNotExist:
+        return Response({"error": "User is not a teacher"}, status=status.HTTP_403_FORBIDDEN)
+    
+    total_subjects = Subject.objects.filter(teacher=teacher).count()
+
+    return Response({"total": total_subjects}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_teacher_total_students(request ,id):
+    # Check if the method is GET AND get the id 
+    if request.method != 'GET':
+        return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    try:
+        teacher = Teacher.objects.get(id=id)
+    except Teacher.DoesNotExist:
+        return Response({"error": "User is not a teacher"}, status=status.HTTP_403_FORBIDDEN)
+    
+    subjects = Subject.objects.filter(teacher=teacher)
+    total_students = Student.objects.filter(section_promo__in=set(subject.section_promo for subject in subjects)).count()
+    
+    return Response({"total": total_students}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_teacher_total_classes(request ,id):
+    # Check if the method is GET AND get the id 
+    if request.method != 'GET':
+        return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    try:
+        teacher = Teacher.objects.get(id=id)
+    except Teacher.DoesNotExist:
+        return Response({"error": "User is not a teacher"}, status=status.HTTP_403_FORBIDDEN)
+    
+    subjects = Subject.objects.filter(teacher=teacher)
+    total_classes = len(set(subject.section_promo for subject in subjects))
+    
+    return Response({"total": total_classes}, status=status.HTTP_200_OK)

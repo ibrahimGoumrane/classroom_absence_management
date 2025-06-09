@@ -8,7 +8,7 @@ from django.conf import settings
 from django.db.models import Count
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
-from apps.users.permissions import IsAdmin
+from apps.users.permissions import IsAdmin, IsTeacherOrAdmin
 from apps.students.serializer import StudentSerializer
 from rest_framework.permissions import AllowAny
 import shutil
@@ -27,6 +27,8 @@ class ClassViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:  # Allow anyone to view teachers
             return [AllowAny()]
+        if self.action == 'get_class_students':
+            return [IsAuthenticated(), IsTeacherOrAdmin()]
         return [IsAuthenticated(), IsAdmin()]  # Require admin permissions for create, update, and delete
 
 

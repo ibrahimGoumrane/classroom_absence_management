@@ -2,13 +2,14 @@ from rest_framework import viewsets
 from .models import Department
 from .serializer import DepartmentSerializer
 from rest_framework.permissions import IsAuthenticated
-from apps.users.permissions import IsAdmin
+from apps.users.permissions import IsAdmin, IsTeacherOrAdmin
 from rest_framework.permissions import AllowAny
 from django.db.models import Count
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from apps.teachers.serializer import TeacherSerializer
 from rest_framework import status as Status
+
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
@@ -17,6 +18,8 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:  # Allow anyone to view departments
             return [AllowAny()]
+        if self.action in ['get_teachers_for_department']:
+            return [IsAuthenticated(), IsTeacherOrAdmin()]
         return [IsAuthenticated(), IsAdmin()]  # Require admin permissions for create, update, and delete
 
     def list(self, request, *args, **kwargs):
@@ -40,21 +43,24 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         teachers = department.teachers.all()
         serializer = TeacherSerializer(teachers, many=True)
         return Response(serializer.data)
+
     @action(detail=False, methods=['get'], url_path='attendance-total')
     def get_departments_attendance(self, request):
         """
         Returns the attendance count for each department.
         """
-        departments_data = Department.objects.annotate(
-            total=Count('teachers__subjects__attendance_records')
-        ).values('name', 'total') # Only select 'name' and 'total' as 'id' is not needed in final output
+        departments_data = Department.objects.annotate(total=Count('teachers__subjects__attendance_records')).values(
+            'name', 'total'
+        )  # Only select 'name' and 'total' as 'id' is not needed in final output
 
         # Transform the QuerySet into the desired JSON format
         formatted_data = []
         for department in departments_data:
-            formatted_data.append({
-                "department": department['name'],   # Map 'name' to 'department'
-                "attendance": department['total'] * 100   # Map 'total' to 'attendance'
-            })
+            formatted_data.append(
+                {
+                    "department": department['name'],  # Map 'name' to 'department'
+                    "attendance": department['total'] * 100,  # Map 'total' to 'attendance'
+                }
+            )
 
         return Response(formatted_data, status=Status.HTTP_200_OK)
