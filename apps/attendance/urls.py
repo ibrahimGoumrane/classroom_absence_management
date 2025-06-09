@@ -5,6 +5,7 @@ from .views import (
     AttendanceProcessView,
     AttendanceConfirmView,
     GenerateEncodingsView,
+    get_attendance_by_student_id,
     get_teacher_attendance_hourly_week,
     get_teacher_attendance_last_30_days,
     get_teacher_attendance_week,
@@ -30,5 +31,6 @@ urlpatterns = [
         get_teacher_attendance_hourly_week,
         name='attendance-hourly-week-teacher',
     ),
+    path('students/<int:student_id>/', get_attendance_by_student_id, name='attendance-by-student-id'),
     path('', include(router.urls)),
 ]

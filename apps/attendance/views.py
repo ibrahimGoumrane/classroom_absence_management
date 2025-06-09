@@ -28,6 +28,11 @@ from rest_framework.decorators import api_view, permission_classes
 
 # Create your views here.
 
+@api_view(['GET'])
+def get_attendance_by_student_id(request, student_id):
+    records = Attendance.objects.filter(student_id=student_id)
+    serializer = AttendanceReadSerializer(records, many=True)
+    return Response(serializer.data)
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     def get_serializer_class(self):
@@ -42,7 +47,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         elif self.action == 'create':
             return [IsAuthenticated() , IsTeacherOrAdmin()] 
         # For  update, and delete actions, require either admin or teacher permissions
-        return [IsAuthenticated(), TeacherAttendanceOwnerOrAdmin()]  
+        return [IsAuthenticated(), TeacherAttendanceOwnerOrAdmin()]
+     
     @action(detail=False, methods=['GET'], url_path='attendance-last-30-days')
     def get_attendance_last_30_days(self, request):
         """
