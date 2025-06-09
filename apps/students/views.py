@@ -2,6 +2,9 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated ,AllowAny
 from rest_framework import status
+
+from apps.subjects.models import Subject
+from apps.subjects.serializer import SubjectReadSerializer
 from .models import Student
 from .serializer import StudentSerializer
 import os
@@ -131,3 +134,20 @@ def get_student_attendance(request, id):
     
     attendances_data = AttendanceReadSerializer(attendances, many=True).data
     return Response(attendances_data, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_student_subjects(request ,id):
+    # Check if the method is GET AND get the id 
+    if request.method != 'GET':
+        return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    try:
+        student = Student.objects.get(id=id)
+    except Student.DoesNotExist:
+        return Response({"error": "User is not a student"}, status=status.HTTP_403_FORBIDDEN)
+    
+    subjects = Subject.objects.filter(section_promo=student.section_promo)
+    serializer = SubjectReadSerializer(subjects, many=True)
+    
+    return Response(serializer.data)
