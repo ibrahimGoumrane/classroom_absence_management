@@ -10,7 +10,7 @@ from apps.subjects.models import Subject
 from .models import Attendance
 from .serializer import AttendanceReadSerializer, AttendanceWriteSerializer
 from rest_framework.permissions import IsAuthenticated , AllowAny
-from apps.users.permissions import IsTeacherOrAdmin, TeacherObjectOwnerOrAdmin 
+from apps.users.permissions import IsTeacherOrAdmin, TeacherAttendanceOwnerOrAdmin 
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework import status
@@ -41,7 +41,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         elif self.action == 'create':
             return [IsAuthenticated() , IsTeacherOrAdmin()] 
         # For  update, and delete actions, require either admin or teacher permissions
-        return [IsAuthenticated(), TeacherObjectOwnerOrAdmin()]  
+        return [IsAuthenticated(), TeacherAttendanceOwnerOrAdmin()]  
     @action(detail=False, methods=['GET'], url_path='attendance-last-30-days')
     def get_attendance_last_30_days(self, request):
         """
