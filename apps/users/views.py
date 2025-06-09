@@ -10,7 +10,9 @@ from django.contrib.auth.hashers import check_password
 from django.contrib.auth import get_user_model
 
 from apps.teachers.models import Teacher
+from apps.students.models import Student
 from apps.teachers.serializer import TeacherSerializer
+from apps.students.serializer import StudentSerializer
 from .models import User
 from .serializer import UserSerializer, LoginSerializer
 from .permissions import IsAdminOrOwner
@@ -47,6 +49,17 @@ class CurrentUserTeacherView(APIView):
         except Teacher.DoesNotExist:
             return Response({"error": "No teacher profile found for this user."}, status=status.HTTP_404_NOT_FOUND)
 
+class CurrentUserStudentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        try:
+            student = Student.objects.get(user=user)
+            student_data = StudentSerializer(student).data
+            return Response(student_data, status=status.HTTP_200_OK)
+        except Student.DoesNotExist:
+            return Response({"error": "No student profile found for this user."}, status=status.HTTP_404_NOT_FOUND)
 
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
