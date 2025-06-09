@@ -12,6 +12,7 @@ from rest_framework.decorators import action
 import datetime
 from apps.attendance.models import Attendance
 from apps.attendance.serializer import AttendanceReadSerializer
+from rest_framework.decorators import api_view, permission_classes
 
 # Create your views here.
 class SubjectViewSet(viewsets.ModelViewSet):
@@ -60,3 +61,39 @@ class SubjectViewSet(viewsets.ModelViewSet):
                 attendance_by_subject[subject_name]['absentStudents'].append(record['student'])
         results = list(attendance_by_subject.values())
         return Response(results, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_teacher_subjects_attendance_today(request ,id):
+    """
+    Returns attendance records for today for a specific teacher subjects, formatted according to the ClassAttendance interface.
+    Each record includes the subject details, date, count of present students, and list of absent students.
+    """
+    # Check if the method is GET AND get the id 
+    if request.method != 'GET':
+        return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    today = datetime.date.today()
+    
+    attendance_records = Attendance.objects.filter(date__date=today, subject__teacher__id=id)
+    
+    # Call the serializer to format the records
+    serializer = AttendanceReadSerializer(attendance_records, many=True)
+    # Group by subject 
+    attendance_by_subject = {}
+    for record in serializer.data:
+        subject_name = record['subject']['name']
+        if subject_name not in attendance_by_subject:
+            attendance_by_subject[subject_name] = {
+                'subject': record['subject'],
+                'date': record['date'],
+                'presentStudents': 0,
+                'absentStudents': []
+            }
+        if record['status'] == 'present':
+            attendance_by_subject[subject_name]['presentStudents'] += 1
+        else:
+            attendance_by_subject[subject_name]['absentStudents'].append(record['student'])
+    results = list(attendance_by_subject.values())
+    return Response(results, status=status.HTTP_200_OK)
