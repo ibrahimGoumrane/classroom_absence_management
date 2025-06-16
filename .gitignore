@@ -3,6 +3,7 @@ __pycache__/
 training/*
 encoding/*
 validation/*
+data/*
 
 # Celery Beat schedule file (default name)
 celerybeat-schedule
