@@ -1,7 +1,7 @@
 """
 How to run:
 python manage.py shell
->>> exec(open('populate_db.py').read())
+>>> exec(open('gen_mock_data/populate_db.py').read())
 """
 
 from apps.attendance.models import Attendance

@@ -2,6 +2,7 @@ import os
 import json
 from PIL import Image
 import random
+from tqdm import tqdm
 
 
 def create_classroom_picture(
@@ -131,14 +132,13 @@ def create_classroom_picture(
 
     # Save the output image
     background.save(output_path)
-    print(f"Classroom picture saved to {output_path}")
     return included_students
 
 
 if __name__ == "__main__":
     classes_path = "training"
-    output_base_path = "data/classroom_pictures"
-    background_path = "classroom_bg.jpeg"
+    output_base_path = "gen_mock_data/classroom_pictures"
+    background_path = "gen_mock_data/classroom_bg.jpeg"
     num_images_per_class = 5
 
     # Ensure output base directory exists
@@ -147,10 +147,12 @@ if __name__ == "__main__":
     # Dictionary to store picture-to-student mappings for all classes
     all_class_mappings = {}
 
-    for class_folder in os.listdir(classes_path):
+    # Get list of class folders
+    class_folders = [f for f in os.listdir(classes_path) if os.path.isdir(os.path.join(classes_path, f))]
+
+    # Iterate over class folders with progress bar
+    for class_folder in tqdm(class_folders, desc="Processing classes"):
         class_path = os.path.join(classes_path, class_folder)
-        if not os.path.isdir(class_path):
-            continue
 
         # Create class-specific output directory
         class_output_path = os.path.join(output_base_path, class_folder)
@@ -159,8 +161,8 @@ if __name__ == "__main__":
         # Dictionary to store picture-to-student mappings for this class
         class_mappings = {}
 
-        # Generate 5 images for this class
-        for i in range(num_images_per_class):
+        # Generate 5 images for this class with progress bar
+        for i in tqdm(range(num_images_per_class), desc=f"Generating images for {class_folder}", leave=False):
             output_filename = f"{class_folder}_picture_{i+1}.png"
             output_path = os.path.join(class_output_path, output_filename)
 
@@ -181,13 +183,11 @@ if __name__ == "__main__":
         json_path = os.path.join(class_output_path, f"{class_folder}_mappings.json")
         with open(json_path, 'w') as f:
             json.dump(class_mappings, f, indent=2)
-        print(f"JSON mapping saved to {json_path}")
 
         # Store in all_class_mappings
         all_class_mappings[class_folder] = class_mappings
 
-    # Optionally, save a combined JSON for all classes
+    # Save a combined JSON for all classes
     combined_json_path = os.path.join(output_base_path, "all_class_mappings.json")
     with open(combined_json_path, 'w') as f:
         json.dump(all_class_mappings, f, indent=2)
-    print(f"Combined JSON mapping saved to {combined_json_path}")
