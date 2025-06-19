@@ -17,28 +17,20 @@ class UploadStudentImagesView(ModelViewSet):
     
 
     def list(self, request, *args, **kwargs):
-        user = request.user
+        student_id = request.query_params.get('student_id')
 
-        if user.role.lower() == 'admin':
-            student_id = request.query_params.get('student_id')
-            if not student_id:
-                return Response({"error": "student_id parameter is required for admin"}, status=status.HTTP_400_BAD_REQUEST)
-            
+        if student_id:
             try:
                 student = Student.objects.get(id=student_id)
             except Student.DoesNotExist:
                 return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
-            
-            images = StudentImage.objects.filter(student=student)
-
         else:
             try:
-                student = Student.objects.get(user=user)
+                student = Student.objects.get(user=request.user)
             except Student.DoesNotExist:
                 return Response({"error": "Student profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
-            images = StudentImage.objects.filter(student=student)
-
+        images = StudentImage.objects.filter(student=student)
         serializer = StudentImageSerializer(images, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
