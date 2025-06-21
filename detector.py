@@ -117,7 +117,7 @@ class FaceRecognitionHandler:
             name_encodings = {"names": [filename], "encodings": face_encodings_old['encodings']}
             self.__save_encodings(relative_path, filename, name_encodings)
             
-            return encoded_image_ids
+        return encoded_image_ids
 
     def recognize_faces(self, image_location, the_classe):
         """
