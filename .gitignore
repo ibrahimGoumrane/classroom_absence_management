@@ -1,6 +1,8 @@
 __pycache__/
 .env
 training/*
+encoding/*
+validation/*
 gen_mock_data/classroom_pictures
 
 # Celery Beat schedule file (default name)
