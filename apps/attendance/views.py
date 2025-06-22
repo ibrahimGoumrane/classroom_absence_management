@@ -652,12 +652,12 @@ class AttendanceConfirmView(viewsets.ViewSet):
         POST - Confirm and Store Attendance
         Endpoint: /api/attendance/confirm
         Description:
-        The request takes a JSON list containing students, subject, date, and status.
+        The request takes a JSON list containing students, subject_id, date, and status.
         After processing, this data is stored in the database.
         Request Body Format:
         {
-            "date": "YYYY-MM-DD",
-            "subject": "Mathematics",
+            "date": "YYYY-MM-DD HH:MM:SS",
+            "subject_id": "3",
             "students": [
                 {
                     "student_id": "123",
@@ -669,40 +669,28 @@ class AttendanceConfirmView(viewsets.ViewSet):
                 }
             ]
         }
-        Response:
-        {
-            "message": "Attendance successfully recorded",
-            "status": "success",
-            "records_processed": 2
-        }
         """
         try:
             # Extract data from request
             data = request.data
             date_str = data.get('date')
-            subject_name = data.get('subject')
+            subject_id = data.get('subject_id')
             students_data = data.get('students')
 
             # Validate required fields
-            if not all([date_str, subject_name, students_data]):
+            if not all([date_str, subject_id, students_data]):
                 return Response(
-                    {"error": "Missing required fields: date, subject, and students are required"},
+                    {"error": "Missing required fields: date, subject_id, and students are required"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Validate date format
+            # Convert string to datetime and make it timezone-aware
             try:
-                attendance_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+                naive_datetime = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                attendance_date = timezone.make_aware(naive_datetime)
             except ValueError:
                 return Response(
-                    {"error": "Invalid date format. Use YYYY-MM-DD"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Validate subject name (basic check for non-empty and no special characters)
-            if not subject_name.strip() or not subject_name.isalnum() and '_' not in subject_name:
-                return Response(
-                    {"error": "Subject name must be non-empty and contain only alphanumeric characters or underscores"},
+                    {"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -717,10 +705,10 @@ class AttendanceConfirmView(viewsets.ViewSet):
             with transaction.atomic():
                 # Get or create subject
                 try:
-                    subject = Subject.objects.get(name=subject_name)
+                    subject = Subject.objects.get(id=subject_id)
                 except Subject.DoesNotExist:
                     return Response(
-                        {"error": f"Subject '{subject_name}' not found"},
+                        {"error": f"Subject with id='{subject_id}' not found"},
                         status=status.HTTP_404_NOT_FOUND
                     )
 
@@ -743,7 +731,7 @@ class AttendanceConfirmView(viewsets.ViewSet):
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-                    # Get student by student_id (assuming Student model has an id field)
+                    # Get student by student_id
                     try:
                         student = Student.objects.get(id=student_id)
                     except Student.DoesNotExist:
@@ -761,7 +749,6 @@ class AttendanceConfirmView(viewsets.ViewSet):
                     )
                     records_processed += 1
 
-                # Success response
                 return Response(
                     {
                         "message": "Attendance successfully recorded",
