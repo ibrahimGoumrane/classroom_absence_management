@@ -1,11 +1,9 @@
-from argparse import Action
 import datetime
 from django.db import transaction
-from django.shortcuts import get_object_or_404
 from jsonschema import ValidationError
 from  rest_framework import viewsets
 
-from apps import attendance
+from apps.classes.models import Class
 from apps.students.models import Student
 from apps.subjects.models import Subject
 from .models import Attendance
@@ -21,7 +19,7 @@ import tempfile
 from rest_framework.decorators import action
 from django.db.models import Count
 from django.utils import timezone
-from django.db.models import Case, When, F, ExpressionWrapper, fields
+from django.db.models import Case, When, F, fields
 from django.db.models.functions import Cast # For potential float conversion
 from rest_framework.decorators import api_view, permission_classes
 
@@ -521,6 +519,15 @@ class AttendanceProcessView(viewsets.ViewSet):
                     {"error": "Missing required parameters: images[], promo_section, and date are required"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            
+            # Validate promo_section
+            try:
+                Class.objects.get(name=promo_section)
+            except Class.DoesNotExist:
+                return Response(
+                    {"error": f"Class with name '{promo_section}' does not exist."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # Use promo_section directly as the_classe (e.g., "PROMO_IAGI_2026")
             the_classe = promo_section
@@ -528,9 +535,7 @@ class AttendanceProcessView(viewsets.ViewSet):
             # Initialize face recognition handler
             face_handler = FaceRecognitionHandler()
 
-            # Dictionary to store attendance results
-            attendance_results = {}
-
+            all_recognized_people = set()
             # Process each uploaded image
             with tempfile.TemporaryDirectory() as temp_dir:
                 for image_file in images:
@@ -543,34 +548,26 @@ class AttendanceProcessView(viewsets.ViewSet):
                     try:
                         # Recognize faces in the image
                         recognized_people = face_handler.recognize_faces(temp_path, the_classe)
-
-                        # Process recognition results
-                        for person in recognized_people:
-                            attendance_results[person] = "present"
-
+                        all_recognized_people.update(set(recognized_people))
                     except imageException as e:
                         return Response(
                             {"error": f"Image processing failed: {str(e)}. Please upload a clearer image."},
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-            # Get all expected students from encodings directory
-            encodings_path = Path("encoding") / the_classe
-            all_students = []
-            if encodings_path.exists():
-                for encoding_file in encodings_path.glob('*_encodings.pkl'):
-                    student_id = encoding_file.stem.replace('_encodings', '')
-                    all_students.append(student_id)
-
-            student = Student.objects.get(id=student_id)  # Get the student object
-            user_first_name = student.user.firstName
-            user_last_name = student.user.lastName
+            class_students = Student.objects.filter(section_promo__name=the_classe)
             
             # Create final attendance list
             final_attendance = [
-                {"id": student_id,"name":user_first_name+' '+user_last_name, "status": "present" if student in attendance_results else "absent"}
-                for student in all_students
+                {
+                    "id": student.id,
+                    "name": f'{student.user.lastName} {student.user.firstName}',
+                    "status": "present" if str(student.id) in all_recognized_people else "absent",
+                }
+                for student in class_students
             ]
+            
+            print(f"Final attendance for {the_classe} on {date}: {final_attendance}")
 
             # Return response
             return Response({
@@ -652,12 +649,12 @@ class AttendanceConfirmView(viewsets.ViewSet):
         POST - Confirm and Store Attendance
         Endpoint: /api/attendance/confirm
         Description:
-        The request takes a JSON list containing students, subject, date, and status.
+        The request takes a JSON list containing students, subject_id, date, and status.
         After processing, this data is stored in the database.
         Request Body Format:
         {
-            "date": "YYYY-MM-DD",
-            "subject": "Mathematics",
+            "date": "YYYY-MM-DD HH:MM:SS",
+            "subject_id": "3",
             "students": [
                 {
                     "student_id": "123",
@@ -669,40 +666,28 @@ class AttendanceConfirmView(viewsets.ViewSet):
                 }
             ]
         }
-        Response:
-        {
-            "message": "Attendance successfully recorded",
-            "status": "success",
-            "records_processed": 2
-        }
         """
         try:
             # Extract data from request
             data = request.data
             date_str = data.get('date')
-            subject_name = data.get('subject')
+            subject_id = data.get('subject_id')
             students_data = data.get('students')
 
             # Validate required fields
-            if not all([date_str, subject_name, students_data]):
+            if not all([date_str, subject_id, students_data]):
                 return Response(
-                    {"error": "Missing required fields: date, subject, and students are required"},
+                    {"error": "Missing required fields: date, subject_id, and students are required"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Validate date format
+            # Convert string to datetime and make it timezone-aware
             try:
-                attendance_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+                naive_datetime = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                attendance_date = timezone.make_aware(naive_datetime)
             except ValueError:
                 return Response(
-                    {"error": "Invalid date format. Use YYYY-MM-DD"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Validate subject name (basic check for non-empty and no special characters)
-            if not subject_name.strip() or not subject_name.isalnum() and '_' not in subject_name:
-                return Response(
-                    {"error": "Subject name must be non-empty and contain only alphanumeric characters or underscores"},
+                    {"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -717,10 +702,10 @@ class AttendanceConfirmView(viewsets.ViewSet):
             with transaction.atomic():
                 # Get or create subject
                 try:
-                    subject = Subject.objects.get(name=subject_name)
+                    subject = Subject.objects.get(id=subject_id)
                 except Subject.DoesNotExist:
                     return Response(
-                        {"error": f"Subject '{subject_name}' not found"},
+                        {"error": f"Subject with id='{subject_id}' not found"},
                         status=status.HTTP_404_NOT_FOUND
                     )
 
@@ -743,7 +728,7 @@ class AttendanceConfirmView(viewsets.ViewSet):
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-                    # Get student by student_id (assuming Student model has an id field)
+                    # Get student by student_id
                     try:
                         student = Student.objects.get(id=student_id)
                     except Student.DoesNotExist:
@@ -761,7 +746,6 @@ class AttendanceConfirmView(viewsets.ViewSet):
                     )
                     records_processed += 1
 
-                # Success response
                 return Response(
                     {
                         "message": "Attendance successfully recorded",
