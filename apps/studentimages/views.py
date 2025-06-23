@@ -6,14 +6,14 @@ from .models import Student, StudentImage
 from .serializer import StudentImageSerializer
 import os
 from django.conf import settings
-
+# from rest_framework.permissions import AllowAny
 
 
 class UploadStudentImagesView(ModelViewSet):
     queryset = StudentImage.objects.all()
     serializer_class = StudentImageSerializer
     def get_permissions(self):
-        return [IsAuthenticated()]  # Allow authenticated users to view images
+        return [IsAuthenticated()]
     
 
     def list(self, request, *args, **kwargs):
@@ -39,8 +39,8 @@ class UploadStudentImagesView(ModelViewSet):
         images = request.FILES.getlist('images')
         # use the id of the user to get the student
         # student = Student.objects.get(user=user)
-
-        if user.role.lower() == 'admin':
+        print(user.role.lower())
+        if user.role.lower() in ['admin', 'student']:
             student_id = request.data.get('student_id')
 
             if not all([ student_id, images]):
@@ -65,7 +65,7 @@ class UploadStudentImagesView(ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         image = self.get_object()
         user = request.user
-        if user.role.lower() != 'admin' and user.id != image.student.user.id:
+        if user.role.lower() not in ['admin','student'] and user.id != image.student.user.id:
             return Response({"error": "You are not authorized to delete this image"}, status=status.HTTP_403_FORBIDDEN)
 
         image_path = os.path.join(settings.MEDIA_ROOT,image.image.path)
