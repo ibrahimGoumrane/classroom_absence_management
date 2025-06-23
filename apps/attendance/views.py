@@ -1,11 +1,9 @@
-from argparse import Action
 import datetime
 from django.db import transaction
-from django.shortcuts import get_object_or_404
 from jsonschema import ValidationError
 from  rest_framework import viewsets
 
-from apps import attendance
+from apps.classes.models import Class
 from apps.students.models import Student
 from apps.subjects.models import Subject
 from .models import Attendance
@@ -21,7 +19,7 @@ import tempfile
 from rest_framework.decorators import action
 from django.db.models import Count
 from django.utils import timezone
-from django.db.models import Case, When, F, ExpressionWrapper, fields
+from django.db.models import Case, When, F, fields
 from django.db.models.functions import Cast # For potential float conversion
 from rest_framework.decorators import api_view, permission_classes
 
@@ -521,6 +519,15 @@ class AttendanceProcessView(viewsets.ViewSet):
                     {"error": "Missing required parameters: images[], promo_section, and date are required"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            
+            # Validate promo_section
+            try:
+                Class.objects.get(name=promo_section)
+            except Class.DoesNotExist:
+                return Response(
+                    {"error": f"Class with name '{promo_section}' does not exist."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # Use promo_section directly as the_classe (e.g., "PROMO_IAGI_2026")
             the_classe = promo_section
@@ -528,9 +535,7 @@ class AttendanceProcessView(viewsets.ViewSet):
             # Initialize face recognition handler
             face_handler = FaceRecognitionHandler()
 
-            # Dictionary to store attendance results
-            attendance_results = {}
-
+            all_recognized_people = set()
             # Process each uploaded image
             with tempfile.TemporaryDirectory() as temp_dir:
                 for image_file in images:
@@ -543,34 +548,26 @@ class AttendanceProcessView(viewsets.ViewSet):
                     try:
                         # Recognize faces in the image
                         recognized_people = face_handler.recognize_faces(temp_path, the_classe)
-
-                        # Process recognition results
-                        for person in recognized_people:
-                            attendance_results[person] = "present"
-
+                        all_recognized_people.update(set(recognized_people))
                     except imageException as e:
                         return Response(
                             {"error": f"Image processing failed: {str(e)}. Please upload a clearer image."},
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-            # Get all expected students from encodings directory
-            encodings_path = Path("encoding") / the_classe
-            all_students = []
-            if encodings_path.exists():
-                for encoding_file in encodings_path.glob('*_encodings.pkl'):
-                    student_id = encoding_file.stem.replace('_encodings', '')
-                    all_students.append(student_id)
-
-            student = Student.objects.get(id=student_id)  # Get the student object
-            user_first_name = student.user.firstName
-            user_last_name = student.user.lastName
+            class_students = Student.objects.filter(section_promo__name=the_classe)
             
             # Create final attendance list
             final_attendance = [
-                {"id": student_id,"name":user_first_name+' '+user_last_name, "status": "present" if student in attendance_results else "absent"}
-                for student in all_students
+                {
+                    "id": student.id,
+                    "name": f'{student.user.lastName} {student.user.firstName}',
+                    "status": "present" if str(student.id) in all_recognized_people else "absent",
+                }
+                for student in class_students
             ]
+            
+            print(f"Final attendance for {the_classe} on {date}: {final_attendance}")
 
             # Return response
             return Response({
