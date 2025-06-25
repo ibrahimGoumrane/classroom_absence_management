@@ -2,6 +2,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated ,AllowAny
 from rest_framework import status
+from django.db.models import Q
 
 from apps.subjects.models import Subject
 from apps.subjects.serializer import SubjectReadSerializer
@@ -28,6 +29,69 @@ class StudentViewSet(ModelViewSet):
         if self.action in ['list', 'retrieve']:  # Allow anyone to view students
             return [AllowAny()]
         return [IsAuthenticated(), IsAdmin()]  # Require admin permissions for create, update, and delete
+    # We wil override the default list method to filter students by class and add pagination 
+    def list(self, request, *args, **kwargs):
+        '''
+        List all students or filter by class ID.
+        parameters:
+            - page: The page number to retrieve (default is 0).
+            - limit: The number of items per page (default is 10).
+            - search: A search term to filter the results (default is an empty string).
+            - paginated: A boolean to indicate whether to paginate the results (default is True).
+            - class: The class to filter the results (default is an empty string).
+        returns:
+            - data: A list of students or a paginated response if paginated is True.
+            - metadata : {
+                - page: number,
+                - limit: number,
+                - total: number,
+                - totalPages: number
+            }
+        '''
+        
+        page = int(request.query_params.get('page', 0))
+        limit = int(request.query_params.get('limit', 10))
+        search = request.query_params.get('search', '')
+        paginated = request.query_params.get('paginated', 'true').lower() == 'true'
+        class_id = request.query_params.get('class', '')
+
+        print("search: " + search)
+        queryset = self.get_queryset()
+        
+        # Apply filters
+        if class_id:
+            queryset = queryset.filter(section_promo__id=class_id)
+        
+        if search:
+            search_term = search.strip()  # Remove leading/trailing whitespace
+            queryset = queryset.filter(
+                Q(user__firstName__icontains=search_term) | 
+                Q(user__lastName__icontains=search_term) | 
+                Q(user__email__icontains=search_term)
+            )
+        
+        # Get the total count AFTER applying filters
+        total_count = queryset.count()
+        
+        # Apply pagination
+        if paginated:
+            start = page * limit
+            end = start + limit
+            queryset = queryset[start:end]
+        
+        serializer = StudentSerializer(queryset, many=True)
+        
+        return Response({
+            'data': serializer.data,
+            'metadata': {
+                'page': page,
+                'limit': limit,
+                'total': total_count,  # Use filtered count
+                'totalPages': (total_count + limit - 1) // limit,  # Calculate based on filtered count
+                'class': class_id if class_id else None
+            }
+        }, status=status.HTTP_200_OK)
+
 
     # This method is overridden to create a folder with the user ID inside the section_promo directory and create a user then create a student
     def create(self, request, *args, **kwargs):
