@@ -16,6 +16,7 @@ from apps.subjects.serializer import SubjectReadSerializer
 from apps.attendance.models import Attendance
 from apps.attendance.serializer import AttendanceReadSerializer
 from rest_framework.decorators import api_view, permission_classes
+from django.db.models import Q
 
 
 # Create your views here.
@@ -27,6 +28,65 @@ class TeacherViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated(), IsAdmin()]  # Require admin permissions for create, update, and delete
 
+    # I want to customize the default list method to Paginate the results using the following params
+    def list(self, request, *args, **kwargs):
+        '''
+        Custom list method to paginate the results.
+        parameters:
+            - page: The page number to retrieve (default is 0).
+            - limit: The number of items per page (default is 10).
+            - search: A search term to filter the results (default is an empty string).
+            - paginated: A boolean to indicate whether to paginate the results (default is True).
+            - department: The department to filter the results (default is an empty string).
+        Returns:
+             - data: array of Teacher objects
+             - metadata: {
+                - page: number,
+                - limit: number,
+                - total: number,
+                - totalPages: number
+             }
+        '''
+        page = int(request.query_params.get('page', 0))
+        limit = int(request.query_params.get('limit', 10))
+        search = request.query_params.get('search', '')
+        paginated = request.query_params.get('paginated', 'true').lower() == 'true'
+        department = request.query_params.get('department', '')
+
+        queryset = self.get_queryset()
+        
+        # Apply filters
+        if department:
+            queryset = queryset.filter(department__id=department)
+        
+        if search:
+            search_term = search.strip()  # Remove leading/trailing whitespace
+            queryset = queryset.filter(
+                Q(user__firstName__icontains=search_term) | 
+                Q(user__lastName__icontains=search_term) | 
+                Q(user__email__icontains=search_term)
+            )
+        
+        # ✅ Get the total count AFTER applying filters
+        total_count = queryset.count()
+        
+        # Apply pagination
+        if paginated:
+            start = page * limit
+            end = start + limit
+            queryset = queryset[start:end]
+        serializer = TeacherSerializer(queryset, many=True)
+        
+        return Response({
+            'data': serializer.data,
+            'metadata': {
+                'page': page if paginated else 0,  # If paginated is false, page should be 0
+                'limit': limit if paginated else total_count,  # If paginated is false, limit should be total count
+                'total': total_count,  # ✅ Use filtered count
+                'totalPages': (total_count + limit - 1) // limit if paginated else 1,  # Calculate total pages
+                'department': department if department else None
+            }
+        }, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         teacher_serializer = self.get_serializer(data=request.data)  # Now it accepts full `user` data
