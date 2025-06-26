@@ -7,15 +7,15 @@ from django.conf import settings
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from apps.users.permissions import IsAdmin, IsTeacherOrAdmin
-from apps.students.serializer import StudentReadLightSerializer, StudentSerializer
+from apps.students.serializer import StudentReadLightSerializer
 from rest_framework.permissions import AllowAny
 import shutil
 from apps.attendance.models import Attendance
 from rest_framework.decorators import api_view, permission_classes
 from apps.subjects.models import Subject
-from apps.subjects.serializer import SubjectReadSerializer, SubjectReadSerializerLight
+from apps.subjects.serializer import SubjectReadSerializerLight
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from apps.attendance.serializer import AttendanceReadSerializer, AttendanceReadSerializerLight
+from apps.attendance.serializer import AttendanceReadSerializerLight
 from django.db.models import Q
 
 
