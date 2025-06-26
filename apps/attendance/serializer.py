@@ -2,8 +2,8 @@ from rest_framework import serializers
 
 from apps.students.models import Student
 from .models import Attendance
-from apps.students.serializer import StudentSerializer
-from apps.subjects.serializer import SubjectReadSerializer
+from apps.students.serializer import StudentReadLightSerializer, StudentSerializer
+from apps.subjects.serializer import SubjectReadSerializer, SubjectReadSerializerWithoutTeacher
 from apps.subjects.models import Subject
 
 class AttendanceReadSerializer(serializers.ModelSerializer):
@@ -14,6 +14,14 @@ class AttendanceReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
         fields = '__all__'
+class AttendanceReadSerializerLight(serializers.ModelSerializer):
+    """Serializer for reading attendance - includes only IDs"""
+    student = StudentReadLightSerializer()
+    subject = SubjectReadSerializerWithoutTeacher()
+
+    class Meta:
+        model = Attendance
+        fields = ['id', 'student', 'subject', 'date', 'status']
 
 class AttendanceWriteSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating attendance - accepts IDs"""

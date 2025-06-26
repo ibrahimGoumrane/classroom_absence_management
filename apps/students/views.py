@@ -55,7 +55,6 @@ class StudentViewSet(ModelViewSet):
         paginated = request.query_params.get('paginated', 'true').lower() == 'true'
         class_id = request.query_params.get('class', '')
 
-        print("search: " + search)
         queryset = self.get_queryset()
         
         # Apply filters

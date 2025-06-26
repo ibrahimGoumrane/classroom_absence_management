@@ -12,7 +12,7 @@ from apps.users.serializer import UserSerializer
 from apps.users.models import User
 from rest_framework import serializers
 from apps.subjects.models import Subject
-from apps.subjects.serializer import SubjectReadSerializer
+from apps.subjects.serializer import  SubjectReadSerializerWithoutTeacher
 from apps.attendance.models import Attendance
 from apps.attendance.serializer import AttendanceReadSerializer
 from rest_framework.decorators import api_view, permission_classes
@@ -130,61 +130,6 @@ class TeacherViewSet(viewsets.ModelViewSet):
 
         return Response({"message": "Teacher deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
     
-
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_teacher_subjects(request ,id):
-    # Check if the method is GET AND get the id 
-    if request.method != 'GET':
-        return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
-    try:
-        teacher = Teacher.objects.get(id=id)
-    except Teacher.DoesNotExist:
-        return Response({"error": "User is not a teacher"}, status=status.HTTP_403_FORBIDDEN)
-    
-    # Get all subjects taught by this teacher
-    subjects = Subject.objects.filter(teacher=teacher)
-    serializer = SubjectReadSerializer(subjects, many=True)
-
-    return Response(serializer.data)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_teacher_attendance(request , id):
-    # Check if the method is GET AND get the id 
-    if request.method != 'GET':
-         return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-    try:
-        teacher = Teacher.objects.get(id=id)
-    except Teacher.DoesNotExist:
-        return Response({"error": "User is not a teacher"}, status=status.HTTP_403_FORBIDDEN)
-    
-    # Get all subjects taught by this teacher
-    subjects = Subject.objects.filter(teacher=teacher)
-    
-    # Get all attendance records for these subjects
-    attendance_records = Attendance.objects.filter(subject__in=subjects)
-    
-    # You can add filters for specific date ranges, students, etc.
-    subject_id = request.query_params.get('subject_id')
-    if subject_id:
-        attendance_records = attendance_records.filter(subject_id=subject_id)
-    
-    date_from = request.query_params.get('date_from')
-    if date_from:
-        attendance_records = attendance_records.filter(date__gte=date_from)
-    
-    date_to = request.query_params.get('date_to')
-    if date_to:
-        attendance_records = attendance_records.filter(date__lte=date_to)
-    
-    serializer = AttendanceReadSerializer(attendance_records, many=True)
-    
-    return Response(serializer.data)
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_teacher_total_subjects(request ,id):
@@ -234,3 +179,145 @@ def get_teacher_total_classes(request ,id):
     total_classes = len(set(subject.section_promo for subject in subjects))
     
     return Response({"total": total_classes}, status=status.HTTP_200_OK)
+
+# Add some pagination to the subjects of a teacher
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_teacher_subjects(request ,id):
+    """
+    Returns all subjects taught by a teacher.
+    Parameters:
+        - id: The ID of the teacher.
+    Query Parameters:
+        - page: The page number to retrieve (default is 0).
+        - limit: The number of items per page (default is 10).
+        - search: A search term to filter the results (default is an empty string).
+        - paginated: A boolean to indicate whether to paginate the results (default is True).
+    Returns:
+       A paginated list of subjects taught by the teacher.
+       - data: array of Subject objects
+         - metadata: {
+                - page: number,
+                - limit: number,
+                - total: number,
+                - totalPages: number
+          }
+       """
+    # Check if the teacher exists
+    try:
+        Teacher.objects.get(id=id)
+    except Teacher.DoesNotExist:
+        return Response({"error": "User is not a teacher"}, status=status.HTTP_403_FORBIDDEN)
+    
+
+    page = int(request.query_params.get('page', 0))
+    limit = int(request.query_params.get('limit', 10))
+    search = request.query_params.get('search', '')
+    paginated = request.query_params.get('paginated', 'true').lower() == 'true'
+    queryset = Subject.objects.filter(teacher__id=id)
+
+    if search:
+        queryset = queryset.filter(name__icontains=search)
+
+    total_count = queryset.count()
+    if paginated:
+        start = page * limit
+        end = start + limit
+        queryset = queryset[start:end]
+    else:
+        start = 0
+        end = total_count
+    # Here
+    serializer = SubjectReadSerializerWithoutTeacher(queryset, many=True)
+    return Response({
+        "data": serializer.data,
+        "metadata": {
+            "page": page,
+            "limit": limit,
+            "total": total_count,
+            "totalPages": (total_count + limit - 1) // limit
+        }
+    })
+
+
+# Get all attendance records for a teacher paginated 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_teacher_attendance(request , id):
+    """
+    Returns all attendance records for a teacher.
+    Parameters:
+        - id: The ID of the teacher.
+    Query Parameters:
+        - subject_id: Filter by specific subject ID (optional).
+        - date_from: Filter records from this date (optional).
+        - student_id: Filter by specific student ID (optional).
+        - date_to: Filter records to this date (optional).
+        - page: The page number to retrieve (default is 0).
+        - limit: The number of items per page (default is 10).
+        - paginated: A boolean to indicate whether to paginate the results (default is True).
+    Returns:
+        A paginated list of attendance records for the teacher.
+        - data: array of Attendance objects
+        - metadata: {
+            - page: number,
+            - limit: number,
+            - total: number,
+            - totalPages: number
+        }
+    """
+        # Check if the method is GET AND get the id 
+    if request.method != 'GET':
+         return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    
+    page = int(request.query_params.get('page', 0))
+    limit = int(request.query_params.get('limit', 10))
+    paginated = request.query_params.get('paginated', 'true').lower() == 'true'
+
+    # Check if the teacher exists
+    try:
+        Teacher.objects.get(id=id)
+    except Teacher.DoesNotExist:
+        return Response({"error": "User is not a teacher"}, status=status.HTTP_403_FORBIDDEN)
+    
+    queryset = Attendance.objects.filter(subject__teacher__id=id).order_by('-date')  # Get all attendance records for the teacher
+    # Apply filters based on query parameters
+    student_id = request.query_params.get('student_id')
+    if student_id:
+        queryset = queryset.filter(student__id=student_id)
+
+    subject_id = request.query_params.get('subject_id')
+    if subject_id:
+        queryset = queryset.filter(subject__id=subject_id)  
+
+    # Get attendance records within a date range
+    date_from = request.query_params.get('date_from')
+    if date_from:
+        queryset = queryset.filter(date__gte=date_from)
+
+    date_to = request.query_params.get('date_to')
+    if date_to:
+        queryset = queryset.filter(date__lte=date_to)
+
+    # Get total count after applying filters
+    total_count = queryset.count()
+    if paginated:
+        start = page * limit
+        end = start + limit
+        queryset = queryset[start:end]
+    else:
+        start = 0
+        end = total_count
+
+    # Serialize the attendance records
+    serializer = AttendanceReadSerializer(queryset, many=True)
+    return Response({
+        "data": serializer.data,
+        "metadata": {
+            "page": page,
+            "limit": limit,
+            "total": total_count,
+            "totalPages": (total_count + limit - 1) // limit
+        }
+    })
+

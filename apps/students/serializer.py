@@ -31,3 +31,11 @@ class StudentSerializer(serializers.ModelSerializer):
         if latest_image:
             return StudentImageSerializer(latest_image).data
         return None
+    
+class StudentReadLightSerializer(serializers.ModelSerializer):
+    """
+    Get from the user only the id, firstName , lastName and email
+    """
+    class Meta:
+        model = Student
+        fields = ['id', 'firstName', 'lastName', 'email']
