@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Teacher
-from apps.users.serializer import UserSerializer
+from apps.users.serializer import UserLightSerializer, UserSerializer
 from apps.users.models import User
 
 class TeacherSerializer(serializers.ModelSerializer):
@@ -19,4 +19,10 @@ class TeacherSerializer(serializers.ModelSerializer):
         user = serializer.save()
         teacher = Teacher.objects.create(user=user, **validated_data)  # Create Teacher instance
         return teacher
-    
+
+class TeacherReadLightSerializer(serializers.ModelSerializer):
+    """Serializer for reading teacher data with minimal fields"""
+    user = UserLightSerializer()
+    class Meta:
+        model = Teacher
+        fields = "__all__"

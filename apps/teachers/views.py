@@ -2,6 +2,7 @@ from django.shortcuts import render
 from rest_framework import viewsets
 
 from apps.students.models import Student
+from apps.subjects.serializer import SubjectReadSerializerLight
 from .models import Teacher
 from .serializer import TeacherSerializer
 from rest_framework.permissions import IsAuthenticated ,AllowAny
@@ -12,9 +13,8 @@ from apps.users.serializer import UserSerializer
 from apps.users.models import User
 from rest_framework import serializers
 from apps.subjects.models import Subject
-from apps.subjects.serializer import  SubjectReadSerializerWithoutTeacher
 from apps.attendance.models import Attendance
-from apps.attendance.serializer import AttendanceReadSerializer, AttendanceReadSerializerLight
+from apps.attendance.serializer import  AttendanceReadSerializerLight
 from rest_framework.decorators import api_view, permission_classes
 from django.db.models import Q
 
@@ -228,7 +228,7 @@ def get_teacher_subjects(request ,id):
         start = 0
         end = total_count
     # Here
-    serializer = SubjectReadSerializerWithoutTeacher(queryset, many=True)
+    serializer = SubjectReadSerializerLight(queryset, many=True)
     return Response({
         "data": serializer.data,
         "metadata": {

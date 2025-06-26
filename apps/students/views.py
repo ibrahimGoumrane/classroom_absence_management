@@ -5,7 +5,7 @@ from rest_framework import status
 from django.db.models import Q
 
 from apps.subjects.models import Subject
-from apps.subjects.serializer import SubjectReadSerializer
+from apps.subjects.serializer import SubjectReadSerializer, SubjectReadSerializerLight
 from .models import Student
 from .serializer import StudentSerializer
 import os
@@ -19,7 +19,7 @@ from rest_framework import serializers
 import shutil
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from apps.attendance.serializer import AttendanceReadSerializer
+from apps.attendance.serializer import AttendanceReadSerializer, AttendanceReadSerializerLight
 from rest_framework.decorators import action
 # Create your views here.
 class StudentViewSet(ModelViewSet):
@@ -171,12 +171,39 @@ class StudentViewSet(ModelViewSet):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_student_attendance(request, id):
+    """
+    Returns all attendance records for a student.
+    Parameters:
+        - id: The ID of the student.
+    Query Parameters:
+        - subject_id: Filter by specific subject ID (optional).
+        - date_from: Filter records from this date (optional).
+        - date_to: Filter records to this date (optional).
+        - status: Filter by attendance status (optional).
+        - page: The page number to retrieve (default is 0).
+        - limit: The number of items per page (default is 10).
+        - paginated: A boolean to indicate whether to paginate the results (default is True).
+    Returns:
+        A paginated list of attendance records for the student.
+        - data: array of Attendance objects
+        - metadata: {
+            - page: number,
+            - limit: number,
+            - total: number,
+            - totalPages: number
+        }
+    """
+    # Get pagination parameters
+    page = int(request.query_params.get('page', 0))
+    limit = int(request.query_params.get('limit', 10))
+    paginated = request.query_params.get('paginated', 'true').lower() == 'true'
+
     try:
         student = Student.objects.get(id=id)
     except Student.DoesNotExist:
         return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    attendances = student.attendance_records.all()
+    attendances = student.attendance_records.all().order_by('-date')  # Get all attendance records for the student
     
     # Add filters based on query parameters
     subject_id = request.query_params.get('subject_id')
@@ -195,22 +222,78 @@ def get_student_attendance(request, id):
     if status_param:
         attendances = attendances.filter(status=status_param)
     
-    attendances_data = AttendanceReadSerializer(attendances, many=True).data
-    return Response(attendances_data, status=status.HTTP_200_OK)
+    # Get total count after applying filters
+    total_count = attendances.count()
+    
+    if paginated:
+        start = page * limit
+        end = start + limit
+        attendances = attendances[start:end]
+    
+    serializer = AttendanceReadSerializerLight(attendances, many=True)
+    return Response({
+        "data": serializer.data,
+        "metadata": {
+            "page": page,
+            "limit": limit,
+            "total": total_count,
+            "totalPages": (total_count + limit - 1) // limit
+        }
+    }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_student_subjects(request ,id):
-    # Check if the method is GET AND get the id 
-    if request.method != 'GET':
-        return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+def get_student_subjects(request, id):
+    """
+    Returns all subjects for a student's class.
+    Parameters:
+        - id: The ID of the student.
+    Query Parameters:
+        - page: The page number to retrieve (default is 0).
+        - limit: The number of items per page (default is 10).
+        - search: A search term to filter the results (default is an empty string).
+        - paginated: A boolean to indicate whether to paginate the results (default is True).
+    Returns:
+       A paginated list of subjects for the student's class.
+       - data: array of Subject objects
+         - metadata: {
+                - page: number,
+                - limit: number,
+                - total: number,
+                - totalPages: number
+          }
+       """
+    # Get pagination parameters
+    page = int(request.query_params.get('page', 0))
+    limit = int(request.query_params.get('limit', 10))
+    search = request.query_params.get('search', '')
+    paginated = request.query_params.get('paginated', 'true').lower() == 'true'
 
     try:
         student = Student.objects.get(id=id)
     except Student.DoesNotExist:
-        return Response({"error": "User is not a student"}, status=status.HTTP_403_FORBIDDEN)
+        return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
     
-    subjects = Subject.objects.filter(section_promo=student.section_promo)
-    serializer = SubjectReadSerializer(subjects, many=True)
+    queryset = Subject.objects.filter(section_promo=student.section_promo)
+
+    if search:
+        queryset = queryset.filter(name__icontains=search)
+
+    total_count = queryset.count()
     
-    return Response(serializer.data)
+    if paginated:
+        start = page * limit
+        end = start + limit
+        queryset = queryset[start:end]
+
+    serializer = SubjectReadSerializerLight(queryset, many=True)
+    
+    return Response({
+        "data": serializer.data,
+        "metadata": {
+            "page": page,
+            "limit": limit,
+            "total": total_count,
+            "totalPages": (total_count + limit - 1) // limit
+        }
+    }, status=status.HTTP_200_OK)
