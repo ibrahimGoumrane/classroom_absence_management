@@ -14,7 +14,7 @@ from rest_framework import serializers
 from apps.subjects.models import Subject
 from apps.subjects.serializer import  SubjectReadSerializerWithoutTeacher
 from apps.attendance.models import Attendance
-from apps.attendance.serializer import AttendanceReadSerializer
+from apps.attendance.serializer import AttendanceReadSerializer, AttendanceReadSerializerLight
 from rest_framework.decorators import api_view, permission_classes
 from django.db.models import Q
 
@@ -310,7 +310,7 @@ def get_teacher_attendance(request , id):
         end = total_count
 
     # Serialize the attendance records
-    serializer = AttendanceReadSerializer(queryset, many=True)
+    serializer = AttendanceReadSerializerLight(queryset, many=True)
     return Response({
         "data": serializer.data,
         "metadata": {

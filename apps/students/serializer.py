@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Student
-from apps.users.serializer import UserSerializer
+from apps.users.serializer import UserLightSerializer, UserSerializer
 from apps.studentimages.serializer import StudentImageSerializer
 
 
@@ -36,6 +36,7 @@ class StudentReadLightSerializer(serializers.ModelSerializer):
     """
     Get from the user only the id, firstName , lastName and email
     """
+    user = UserLightSerializer()
     class Meta:
         model = Student
-        fields = ['id', 'firstName', 'lastName', 'email']
+        fields = "__all__"

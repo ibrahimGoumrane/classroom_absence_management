@@ -22,7 +22,13 @@ class SubjectReadSerializerWithoutTeacher(serializers.ModelSerializer):
     class Meta:
         model = Subject
         fields = ['id', 'name', 'section_promo']
-
+class SubjectReadSerializerLight(serializers.ModelSerializer):
+    """
+    Serializer for reading subjects 
+    """
+    class Meta:
+        model = Subject
+        fields = ['id', 'name']
 
 class SubjectWriteSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating subjects - accepts IDs"""
