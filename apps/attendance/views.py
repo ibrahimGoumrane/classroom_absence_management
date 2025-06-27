@@ -1,15 +1,15 @@
 import datetime
 from django.db import transaction
 from jsonschema import ValidationError
-from  rest_framework import viewsets
+from rest_framework import viewsets
 
 from apps.classes.models import Class
 from apps.students.models import Student
 from apps.subjects.models import Subject
 from .models import Attendance
-from .serializer import AttendanceReadSerializer, AttendanceWriteSerializer
-from rest_framework.permissions import IsAuthenticated , AllowAny
-from apps.users.permissions import IsTeacherOrAdmin, TeacherAttendanceOwnerOrAdmin 
+from .serializer import AttendanceReadSerializer, AttendanceReadSerializerLight, AttendanceWriteSerializer
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from apps.users.permissions import IsTeacherOrAdmin, TeacherAttendanceOwnerOrAdmin
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework import status
@@ -20,33 +20,102 @@ from rest_framework.decorators import action
 from django.db.models import Count
 from django.utils import timezone
 from django.db.models import Case, When, F, fields
-from django.db.models.functions import Cast # For potential float conversion
+from django.db.models.functions import Cast  # For potential float conversion
 from rest_framework.decorators import api_view, permission_classes
+from django.db.models import Q
 
 
-# Create your views here.
-
-@api_view(['GET'])
-def get_attendance_by_student_id(request, student_id):
-    records = Attendance.objects.filter(student_id=student_id)
-    serializer = AttendanceReadSerializer(records, many=True)
-    return Response(serializer.data)
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
+
+    def list(self, request, *args, **kwargs):
+        """
+        Custom list method to paginate and filter the results.
+        parameters:
+            - page: The page number to retrieve (default is 0).
+            - limit: The number of items per page (default is 10).
+            - student_id: Filter by student ID.
+            - subject_id: Filter by subject ID.
+            - date_from: Filter by start date (YYYY-MM-DD HH:mm:ss, time is optional).
+            - date_to: Filter by end date (YYYY-MM-DD HH:mm:ss, time is optional).
+            - status: Filter by attendance status (present/absent).
+            - paginated: A boolean to indicate whether to paginate the results (default is True).
+        Returns:
+            - data: array of Attendance objects
+            - metadata: {
+                - page: number,
+                - limit: number,
+                - total: number,
+                - totalPages: number
+            }
+        """
+        page = int(request.query_params.get('page', 0))
+        limit = int(request.query_params.get('limit', 10))
+        paginated = request.query_params.get('paginated', 'true').lower() == 'true'
+
+        queryset = self.get_queryset()
+
+        # Apply filters
+        filters = Q()
+        student_id = request.query_params.get('student_id')
+        if student_id:
+            filters &= Q(student__id=student_id)
+
+        subject_id = request.query_params.get('subject_id')
+        if subject_id:
+            filters &= Q(subject__id=subject_id)
+
+        date_from = request.query_params.get('date_from')
+        if date_from:
+            filters &= Q(date__gte=date_from)
+
+        date_to = request.query_params.get('date_to')
+        if date_to:
+            filters &= Q(date__lte=date_to)
+
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            filters &= Q(status__iexact=status_filter)
+
+        queryset = queryset.filter(filters)
+
+        total_count = queryset.count()
+
+        if paginated:
+            start = page * limit
+            end = start + limit
+            queryset = queryset[start:end]
+
+        serializer = AttendanceReadSerializerLight(queryset, many=True)
+
+        return Response(
+            {
+                'data': serializer.data,
+                'metadata': {
+                    'page': page if paginated else 0,
+                    'limit': limit if paginated else total_count,
+                    'total': total_count,
+                    'totalPages': (total_count + limit - 1) // limit if paginated else 1,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
     def get_serializer_class(self):
         """Use different serializers for read/write operations"""
         if self.action in ['create', 'update', 'partial_update']:
             return AttendanceWriteSerializer
         return AttendanceReadSerializer
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:  # Allow anyone to view teachers
             return [AllowAny()]
         # For create require authentication
         elif self.action == 'create':
-            return [IsAuthenticated() , IsTeacherOrAdmin()] 
+            return [IsAuthenticated(), IsTeacherOrAdmin()]
         # For  update, and delete actions, require either admin or teacher permissions
         return [IsAuthenticated(), TeacherAttendanceOwnerOrAdmin()]
-     
+
     @action(detail=False, methods=['GET'], url_path='attendance-last-30-days')
     def get_attendance_last_30_days(self, request):
         """
@@ -55,7 +124,9 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         """
         today_date = datetime.date.today()
 
-        naive_start_datetime = datetime.datetime.combine(today_date - datetime.timedelta(days=29), datetime.time.min)
+        naive_start_datetime = datetime.datetime.combine(
+            today_date - datetime.timedelta(days=29), datetime.time.min
+        )
         start_datetime_aware = timezone.make_aware(naive_start_datetime)
 
         naive_end_datetime = datetime.datetime.combine(today_date, datetime.time.max)
@@ -64,34 +135,27 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         attendance_records = Attendance.objects.filter(date__range=[start_datetime_aware, end_datetime_aware])
 
         daily_counts_and_rates = (
-            attendance_records
-            .values('date__date') # Group by the date part of the datetime field
-            .annotate(
+            attendance_records.values('date__date').annotate(  # Group by the date part of the datetime field
                 # Count total attendance records for the day (present + absent + others)
                 total_observations=Count('id'),
-                
                 # Count observations where status is 'present'
-                present_count=Count(
-                    Case(
-                        When(status='present', then=1),
-                        output_field=fields.IntegerField()
-                    )
-                ),
+                present_count=Count(Case(When(status='present', then=1), output_field=fields.IntegerField())),
             )
             # Now, annotate again to calculate the attendance rate based on the counts
-            .annotate(  
+            .annotate(
                 # Calculate attendance rate: present_count / total_observations
                 # Ensure division by zero is handled and result is float
                 attendance=Case(
                     When(total_observations=0, then=0.0),  # If sum is 0, rate is 0
-                    default=Cast(F('present_count'), output_field=fields.FloatField()) / Cast(F('total_observations'), output_field=fields.FloatField()),
-                    output_field=fields.FloatField()
+                    default=Cast(F('present_count'), output_field=fields.FloatField())
+                    / Cast(F('total_observations'), output_field=fields.FloatField()),
+                    output_field=fields.FloatField(),
                 )
             )
             # Select only the fields you need for the final output
-            .order_by('date__date') # Order by date to ensure correct loop processing
+            .order_by('date__date')  # Order by date to ensure correct loop processing
         )
-    
+
         # Build a dict for quick lookup using date objects as keys
         attendance_data_dict = {
             record['date__date']: {
@@ -103,14 +167,18 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         formatted_data = []
         for i in range(30):
             day_iter = start_datetime_aware.date() + datetime.timedelta(days=i)
-            
-            # Get data for the current day from the dictionary
-            day_data = attendance_data_dict.get(day_iter, {"attendance": 0}) # Default values if no records for the day
 
-            formatted_data.append({
-                "date": day_iter.strftime("%b %d"),
-                "attendance": day_data["attendance"] * 100,
-            })
+            # Get data for the current day from the dictionary
+            day_data = attendance_data_dict.get(
+                day_iter, {"attendance": 0}
+            )  # Default values if no records for the day
+
+            formatted_data.append(
+                {
+                    "date": day_iter.strftime("%b %d"),
+                    "attendance": day_data["attendance"] * 100,
+                }
+            )
 
         return Response(formatted_data, status=status.HTTP_200_OK)
 
@@ -118,49 +186,46 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def get_attendance_week(self, request):
         """
         Returns the attendance for the current week in the format:
-        [{ "date": "Mon", "attendance": 90}, ...] 
+        [{ "date": "Mon", "attendance": 90}, ...]
         """
         # First get the start and end of the current week
         today_date = datetime.date.today()
-        start_of_week_naive = datetime.datetime.combine(today_date - datetime.timedelta(days=today_date.weekday()) , datetime.time.min)
-        end_of_week_naive = datetime.datetime.combine(start_of_week_naive + datetime.timedelta(days=6), datetime.time.max)
+        start_of_week_naive = datetime.datetime.combine(
+            today_date - datetime.timedelta(days=today_date.weekday()), datetime.time.min
+        )
+        end_of_week_naive = datetime.datetime.combine(
+            start_of_week_naive + datetime.timedelta(days=6), datetime.time.max
+        )
 
         start_of_week = timezone.make_aware(start_of_week_naive)
         end_of_week = timezone.make_aware(end_of_week_naive)
 
         # Get attendance records for the current week
         attendance_records = Attendance.objects.filter(date__range=[start_of_week, end_of_week])
-        
+
         # Group by date and calculate attendance
         daily_counts_and_rates = (
-            attendance_records
-            .values('date__date') # Group by the date part of the datetime field
-            .annotate(
+            attendance_records.values('date__date').annotate(  # Group by the date part of the datetime field
                 # Count total attendance records for the day (present + absent + others)
                 total_observations=Count('id'),
-                
                 # Count observations where status is 'present'
-                present_count=Count(
-                    Case(
-                        When(status='present', then=1),
-                        output_field=fields.IntegerField()
-                    )
-                ),
+                present_count=Count(Case(When(status='present', then=1), output_field=fields.IntegerField())),
             )
             # Now, annotate again to calculate the attendance rate based on the counts
-            .annotate(  
+            .annotate(
                 # Calculate attendance rate: present_count / total_observations
                 # Ensure division by zero is handled and result is float
                 attendance=Case(
                     When(total_observations=0, then=0.0),  # If sum is 0, rate is 0
-                    default=Cast(F('present_count'), output_field=fields.FloatField()) / Cast(F('total_observations'), output_field=fields.FloatField()),
-                    output_field=fields.FloatField()
+                    default=Cast(F('present_count'), output_field=fields.FloatField())
+                    / Cast(F('total_observations'), output_field=fields.FloatField()),
+                    output_field=fields.FloatField(),
                 )
             )
             # Select only the fields you need for the final output
-            .order_by('date__date') # Order by date to ensure correct loop processing
+            .order_by('date__date')  # Order by date to ensure correct loop processing
         )
-    
+
         # Build a dict for quick lookup using date objects as keys
         attendance_data_dict = {
             record['date__date']: {
@@ -172,14 +237,18 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         formatted_data = []
         for i in range(7):
             day_iter = start_of_week.date() + datetime.timedelta(days=i)
-            
-            # Get data for the current day from the dictionary
-            day_data = attendance_data_dict.get(day_iter, {"attendance": 0}) # Default values if no records for the day
 
-            formatted_data.append({
-                "date": day_iter.strftime("%a"),  # Format as abbreviated weekday name (e.g., "Mon")
-                "attendance": day_data["attendance"] * 100,
-            })
+            # Get data for the current day from the dictionary
+            day_data = attendance_data_dict.get(
+                day_iter, {"attendance": 0}
+            )  # Default values if no records for the day
+
+            formatted_data.append(
+                {
+                    "date": day_iter.strftime("%a"),  # Format as abbreviated weekday name (e.g., "Mon")
+                    "attendance": day_data["attendance"] * 100,
+                }
+            )
 
         return Response(formatted_data, status=status.HTTP_200_OK)
 
@@ -211,20 +280,24 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             {"start": 10, "end": 12, "label": "10:00 - 12:00"},
             {"start": 12, "end": 14, "label": "12:00 - 14:00 (Break)"},
             {"start": 14, "end": 16, "label": "14:00 - 16:00"},
-            {"start": 16, "end": 18, "label": "16:00 - 18:00"}
+            {"start": 16, "end": 18, "label": "16:00 - 18:00"},
         ]
-        
+
         # First get the start and end of the current week
         today_date = datetime.date.today()
-        start_of_week_naive = datetime.datetime.combine(today_date - datetime.timedelta(days=today_date.weekday()), datetime.time.min)
-        end_of_week_naive = datetime.datetime.combine(start_of_week_naive + datetime.timedelta(days=6), datetime.time.max)
-        
+        start_of_week_naive = datetime.datetime.combine(
+            today_date - datetime.timedelta(days=today_date.weekday()), datetime.time.min
+        )
+        end_of_week_naive = datetime.datetime.combine(
+            start_of_week_naive + datetime.timedelta(days=6), datetime.time.max
+        )
+
         start_of_week = timezone.make_aware(start_of_week_naive)
         end_of_week = timezone.make_aware(end_of_week_naive)
-        
+
         # Get attendance records for the current week
         attendance_records = Attendance.objects.filter(date__range=[start_of_week, end_of_week])
-        
+
         # Prepare the week data structure
         week_data = []
         for day_offset in range(7):
@@ -232,90 +305,163 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             day_data = {
                 "day": current_day.strftime("%a"),  # Abbreviated day name (Mon, Tue, etc.)
                 "date": current_day.strftime("%Y-%m-%d"),
-                "hourly_data": []
+                "hourly_data": [],
             }
-            
+
             # Calculate attendance for each hour range
             for hour_range in hour_ranges:
                 # Define time range for this hour block
-                range_start_naive = datetime.datetime.combine(current_day, datetime.time(hour=hour_range["start"]))
-                range_end_naive = datetime.datetime.combine(current_day, datetime.time(hour=hour_range["end"]))
-                
+                range_start_naive = datetime.datetime.combine(
+                    current_day, datetime.time(hour=hour_range["start"])
+                )
+                range_end_naive = datetime.datetime.combine(
+                    current_day, datetime.time(hour=hour_range["end"])
+                )
+
                 range_start = timezone.make_aware(range_start_naive)
                 range_end = timezone.make_aware(range_end_naive)
-                
+
                 # Filter attendance records for this time range
                 time_range_records = attendance_records.filter(date__range=[range_start, range_end])
-                
+
                 # Calculate attendance rate for this time range
                 total_records = time_range_records.count()
                 present_records = time_range_records.filter(status='present').count()
-                
+
                 # Calculate attendance percentage (avoid division by zero)
                 attendance_rate = 0
                 if total_records > 0:
                     attendance_rate = (present_records / total_records) * 100
-                
+
                 # Add hour range data
-                day_data["hourly_data"].append({
-                    "hour_range": hour_range["label"],
-                    "attendance": round(attendance_rate, 1)  # Round to 1 decimal place
-                })
-            
+                day_data["hourly_data"].append(
+                    {
+                        "hour_range": hour_range["label"],
+                        "attendance": round(attendance_rate, 1),  # Round to 1 decimal place
+                    }
+                )
+
             week_data.append(day_data)
-        
+
         return Response(week_data, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
+def get_attendance_by_student_id(request, student_id):
+    """
+    Custom list method to paginate and filter the results.
+    parameters:
+        - page: The page number to retrieve (default is 0).
+        - limit: The number of items per page (default is 10).
+        - subject_id: Filter by subject ID.
+        - date_from: Filter by start date (YYYY-MM-DD HH:mm:ss).
+        - date_to: Filter by end date (YYYY-MM-DD HH:mm:ss).
+        - status: Filter by attendance status (present/absent).
+        - paginated: A boolean to indicate whether to paginate the results (default is True).
+    Returns:
+        - data: array of Attendance objects
+        - metadata: {
+            - page: number,
+            - limit: number,
+            - total: number,
+            - totalPages: number
+        }
+    """
+    page = int(request.query_params.get('page', 0))
+    limit = int(request.query_params.get('limit', 10))
+    paginated = request.query_params.get('paginated', 'true').lower() == 'true'
+
+    records = Attendance.objects.filter(student_id=student_id)
+
+    # Apply filters
+    filters = Q()
+    subject_id = request.query_params.get('subject_id')
+    if subject_id:
+        filters &= Q(subject__id=subject_id)
+
+    date_from = request.query_params.get('date_from')
+    if date_from:
+        filters &= Q(date__gte=date_from)
+
+    date_to = request.query_params.get('date_to')
+    if date_to:
+        filters &= Q(date__lte=date_to)
+
+    status_filter = request.query_params.get('status')
+    if status_filter:
+        filters &= Q(status__iexact=status_filter)
+
+    records = records.filter(filters)
+
+    total_count = records.count()
+
+    if paginated:
+        start = page * limit
+        end = start + limit
+        records = records[start:end]
+
+    serializer = AttendanceReadSerializerLight(records, many=True)
+
+    return Response(
+        {
+            'data': serializer.data,
+            'metadata': {
+                'page': page if paginated else 0,
+                'limit': limit if paginated else total_count,
+                'total': total_count,
+                'totalPages': (total_count + limit - 1) // limit if paginated else 1,
+            },
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['GET'])
 @permission_classes([IsAuthenticated, IsTeacherOrAdmin])
-def get_teacher_attendance_last_30_days(request ,id):
+def get_teacher_attendance_last_30_days(request, id):
     """
     Returns daily attendance counts and presence rates for a
     specific teacher for the last 30 days in the format:
     [{ "date": "Jan 30", "attendance": 90, "presence_rate": 0.85 }, ...]
     """
-    # Check if the method is GET AND get the id 
+    # Check if the method is GET AND get the id
     if request.method != 'GET':
         return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     today_date = datetime.date.today()
 
-    naive_start_datetime = datetime.datetime.combine(today_date - datetime.timedelta(days=29), datetime.time.min)
+    naive_start_datetime = datetime.datetime.combine(
+        today_date - datetime.timedelta(days=29), datetime.time.min
+    )
     start_datetime_aware = timezone.make_aware(naive_start_datetime)
 
     naive_end_datetime = datetime.datetime.combine(today_date, datetime.time.max)
     end_datetime_aware = timezone.make_aware(naive_end_datetime)
 
-    attendance_records = Attendance.objects.filter(date__range=[start_datetime_aware, end_datetime_aware], subject__teacher__id=id)
+    attendance_records = Attendance.objects.filter(
+        date__range=[start_datetime_aware, end_datetime_aware], subject__teacher__id=id
+    )
 
     daily_counts_and_rates = (
-        attendance_records
-        .values('date__date') # Group by the date part of the datetime field
-        .annotate(
+        attendance_records.values('date__date').annotate(  # Group by the date part of the datetime field
             # Count total attendance records for the day (present + absent + others)
             total_observations=Count('id'),
-            
             # Count observations where status is 'present'
-            present_count=Count(
-                Case(
-                    When(status='present', then=1),
-                    output_field=fields.IntegerField()
-                )
-            ),
+            present_count=Count(Case(When(status='present', then=1), output_field=fields.IntegerField())),
         )
         # Now, annotate again to calculate the attendance rate based on the counts
-        .annotate(  
+        .annotate(
             # Calculate attendance rate: present_count / total_observations
             # Ensure division by zero is handled and result is float
             attendance=Case(
                 When(total_observations=0, then=0.0),  # If sum is 0, rate is 0
-                default=Cast(F('present_count'), output_field=fields.FloatField()) / Cast(F('total_observations'), output_field=fields.FloatField()),
-                output_field=fields.FloatField()
+                default=Cast(F('present_count'), output_field=fields.FloatField())
+                / Cast(F('total_observations'), output_field=fields.FloatField()),
+                output_field=fields.FloatField(),
             )
         )
         # Select only the fields you need for the final output
-        .order_by('date__date') # Order by date to ensure correct loop processing
+        .order_by('date__date')  # Order by date to ensure correct loop processing
     )
 
     # Build a dict for quick lookup using date objects as keys
@@ -329,67 +475,71 @@ def get_teacher_attendance_last_30_days(request ,id):
     formatted_data = []
     for i in range(30):
         day_iter = start_datetime_aware.date() + datetime.timedelta(days=i)
-        
-        # Get data for the current day from the dictionary
-        day_data = attendance_data_dict.get(day_iter, {"attendance": 0}) # Default values if no records for the day
 
-        formatted_data.append({
-            "date": day_iter.strftime("%b %d"),
-            "attendance": day_data["attendance"] * 100,
-        })
+        # Get data for the current day from the dictionary
+        day_data = attendance_data_dict.get(
+            day_iter, {"attendance": 0}
+        )  # Default values if no records for the day
+
+        formatted_data.append(
+            {
+                "date": day_iter.strftime("%b %d"),
+                "attendance": day_data["attendance"] * 100,
+            }
+        )
 
     return Response(formatted_data, status=status.HTTP_200_OK)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsTeacherOrAdmin])
 def get_teacher_attendance_week(request, id):
     """
     Returns the attendance for the current week in the format:
-    [{ "date": "Mon", "attendance": 90}, ...] 
+    [{ "date": "Mon", "attendance": 90}, ...]
     """
-    # Check if the method is GET AND get the id 
+    # Check if the method is GET AND get the id
     if request.method != 'GET':
         return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     # First get the start and end of the current week
     today_date = datetime.date.today()
-    start_of_week_naive = datetime.datetime.combine(today_date - datetime.timedelta(days=today_date.weekday()) , datetime.time.min)
-    end_of_week_naive = datetime.datetime.combine(start_of_week_naive + datetime.timedelta(days=6), datetime.time.max)
+    start_of_week_naive = datetime.datetime.combine(
+        today_date - datetime.timedelta(days=today_date.weekday()), datetime.time.min
+    )
+    end_of_week_naive = datetime.datetime.combine(
+        start_of_week_naive + datetime.timedelta(days=6), datetime.time.max
+    )
 
     start_of_week = timezone.make_aware(start_of_week_naive)
     end_of_week = timezone.make_aware(end_of_week_naive)
 
     # Get attendance records for the current week
-    attendance_records = Attendance.objects.filter(date__range=[start_of_week, end_of_week], subject__teacher__id=id)
-    
+    attendance_records = Attendance.objects.filter(
+        date__range=[start_of_week, end_of_week], subject__teacher__id=id
+    )
+
     # Group by date and calculate attendance
     daily_counts_and_rates = (
-        attendance_records
-        .values('date__date') # Group by the date part of the datetime field
-        .annotate(
+        attendance_records.values('date__date').annotate(  # Group by the date part of the datetime field
             # Count total attendance records for the day (present + absent + others)
             total_observations=Count('id'),
-            
             # Count observations where status is 'present'
-            present_count=Count(
-                Case(
-                    When(status='present', then=1),
-                    output_field=fields.IntegerField()
-                )
-            ),
+            present_count=Count(Case(When(status='present', then=1), output_field=fields.IntegerField())),
         )
         # Now, annotate again to calculate the attendance rate based on the counts
-        .annotate(  
+        .annotate(
             # Calculate attendance rate: present_count / total_observations
             # Ensure division by zero is handled and result is float
             attendance=Case(
                 When(total_observations=0, then=0.0),  # If sum is 0, rate is 0
-                default=Cast(F('present_count'), output_field=fields.FloatField()) / Cast(F('total_observations'), output_field=fields.FloatField()),
-                output_field=fields.FloatField()
+                default=Cast(F('present_count'), output_field=fields.FloatField())
+                / Cast(F('total_observations'), output_field=fields.FloatField()),
+                output_field=fields.FloatField(),
             )
         )
         # Select only the fields you need for the final output
-        .order_by('date__date') # Order by date to ensure correct loop processing
+        .order_by('date__date')  # Order by date to ensure correct loop processing
     )
 
     # Build a dict for quick lookup using date objects as keys
@@ -403,16 +553,21 @@ def get_teacher_attendance_week(request, id):
     formatted_data = []
     for i in range(7):
         day_iter = start_of_week.date() + datetime.timedelta(days=i)
-        
-        # Get data for the current day from the dictionary
-        day_data = attendance_data_dict.get(day_iter, {"attendance": 0}) # Default values if no records for the day
 
-        formatted_data.append({
-            "date": day_iter.strftime("%a"),  # Format as abbreviated weekday name (e.g., "Mon")
-            "attendance": day_data["attendance"] * 100,
-        })
+        # Get data for the current day from the dictionary
+        day_data = attendance_data_dict.get(
+            day_iter, {"attendance": 0}
+        )  # Default values if no records for the day
+
+        formatted_data.append(
+            {
+                "date": day_iter.strftime("%a"),  # Format as abbreviated weekday name (e.g., "Mon")
+                "attendance": day_data["attendance"] * 100,
+            }
+        )
 
     return Response(formatted_data, status=status.HTTP_200_OK)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsTeacherOrAdmin])
@@ -436,7 +591,7 @@ def get_teacher_attendance_hourly_week(request, id):
         ...
     ]
     """
-    # Check if the method is GET AND get the id 
+    # Check if the method is GET AND get the id
     if request.method != 'GET':
         return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
@@ -446,20 +601,26 @@ def get_teacher_attendance_hourly_week(request, id):
         {"start": 10, "end": 12, "label": "10:00 - 12:00"},
         {"start": 12, "end": 14, "label": "12:00 - 14:00 (Break)"},
         {"start": 14, "end": 16, "label": "14:00 - 16:00"},
-        {"start": 16, "end": 18, "label": "16:00 - 18:00"}
+        {"start": 16, "end": 18, "label": "16:00 - 18:00"},
     ]
-    
+
     # First get the start and end of the current week
     today_date = datetime.date.today()
-    start_of_week_naive = datetime.datetime.combine(today_date - datetime.timedelta(days=today_date.weekday()), datetime.time.min)
-    end_of_week_naive = datetime.datetime.combine(start_of_week_naive + datetime.timedelta(days=6), datetime.time.max)
-    
+    start_of_week_naive = datetime.datetime.combine(
+        today_date - datetime.timedelta(days=today_date.weekday()), datetime.time.min
+    )
+    end_of_week_naive = datetime.datetime.combine(
+        start_of_week_naive + datetime.timedelta(days=6), datetime.time.max
+    )
+
     start_of_week = timezone.make_aware(start_of_week_naive)
     end_of_week = timezone.make_aware(end_of_week_naive)
-    
+
     # Get attendance records for the current week
-    attendance_records = Attendance.objects.filter(date__range=[start_of_week, end_of_week], subject__teacher__id=id)
-    
+    attendance_records = Attendance.objects.filter(
+        date__range=[start_of_week, end_of_week], subject__teacher__id=id
+    )
+
     # Prepare the week data structure
     week_data = []
     for day_offset in range(7):
@@ -467,39 +628,44 @@ def get_teacher_attendance_hourly_week(request, id):
         day_data = {
             "day": current_day.strftime("%a"),  # Abbreviated day name (Mon, Tue, etc.)
             "date": current_day.strftime("%Y-%m-%d"),
-            "hourly_data": []
+            "hourly_data": [],
         }
-        
+
         # Calculate attendance for each hour range
         for hour_range in hour_ranges:
             # Define time range for this hour block
-            range_start_naive = datetime.datetime.combine(current_day, datetime.time(hour=hour_range["start"]))
+            range_start_naive = datetime.datetime.combine(
+                current_day, datetime.time(hour=hour_range["start"])
+            )
             range_end_naive = datetime.datetime.combine(current_day, datetime.time(hour=hour_range["end"]))
-            
+
             range_start = timezone.make_aware(range_start_naive)
             range_end = timezone.make_aware(range_end_naive)
-            
+
             # Filter attendance records for this time range
             time_range_records = attendance_records.filter(date__range=[range_start, range_end])
-            
+
             # Calculate attendance rate for this time range
             total_records = time_range_records.count()
             present_records = time_range_records.filter(status='present').count()
-            
+
             # Calculate attendance percentage (avoid division by zero)
             attendance_rate = 0
             if total_records > 0:
                 attendance_rate = (present_records / total_records) * 100
-            
+
             # Add hour range data
-            day_data["hourly_data"].append({
-                "hour_range": hour_range["label"],
-                "attendance": round(attendance_rate, 1)  # Round to 1 decimal place
-            })
-        
+            day_data["hourly_data"].append(
+                {
+                    "hour_range": hour_range["label"],
+                    "attendance": round(attendance_rate, 1),  # Round to 1 decimal place
+                }
+            )
+
         week_data.append(day_data)
-    
+
     return Response(week_data, status=status.HTTP_200_OK)
+
 
 class AttendanceProcessView(viewsets.ViewSet):
     def post(self, request):
@@ -517,16 +683,16 @@ class AttendanceProcessView(viewsets.ViewSet):
             if not all([images, promo_section, date]):
                 return Response(
                     {"error": "Missing required parameters: images[], promo_section, and date are required"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-            
+
             # Validate promo_section
             try:
                 Class.objects.get(name=promo_section)
             except Class.DoesNotExist:
                 return Response(
                     {"error": f"Class with name '{promo_section}' does not exist."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Use promo_section directly as the_classe (e.g., "PROMO_IAGI_2026")
@@ -552,11 +718,11 @@ class AttendanceProcessView(viewsets.ViewSet):
                     except imageException as e:
                         return Response(
                             {"error": f"Image processing failed: {str(e)}. Please upload a clearer image."},
-                            status=status.HTTP_400_BAD_REQUEST
+                            status=status.HTTP_400_BAD_REQUEST,
                         )
 
             class_students = Student.objects.filter(section_promo__name=the_classe)
-            
+
             # Create final attendance list
             final_attendance = [
                 {
@@ -566,21 +732,21 @@ class AttendanceProcessView(viewsets.ViewSet):
                 }
                 for student in class_students
             ]
-            
+
             print(f"Final attendance for {the_classe} on {date}: {final_attendance}")
 
             # Return response
-            return Response({
-                "date": date,
-                "promo_section": promo_section,
-                "students": final_attendance
-            }, status=status.HTTP_200_OK)
+            return Response(
+                {"date": date, "promo_section": promo_section, "students": final_attendance},
+                status=status.HTTP_200_OK,
+            )
 
         except Exception as e:
             return Response(
                 {"error": f"An unexpected error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class GenerateEncodingsView(viewsets.ViewSet):
     def post(self, request):
@@ -596,7 +762,7 @@ class GenerateEncodingsView(viewsets.ViewSet):
             if not promo_section:
                 return Response(
                     {"error": "Missing required parameter: promo_section is required"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Use promo_section directly as the_classe (e.g., "PROMO_IAGI_2026")
@@ -606,8 +772,10 @@ class GenerateEncodingsView(viewsets.ViewSet):
             training_path = Path("training") / the_classe
             if not training_path.exists():
                 return Response(
-                    {"error": f"No training data found for {the_classe}. Ensure images are in training/{the_classe}/student_id/"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {
+                        "error": f"No training data found for {the_classe}. Ensure images are in training/{the_classe}/student_id/"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Initialize face recognition handler
@@ -619,7 +787,7 @@ class GenerateEncodingsView(viewsets.ViewSet):
             except Exception as e:
                 return Response(
                     {"error": f"Failed to generate encodings: {str(e)}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
             # Verify that encodings were generated
@@ -627,22 +795,28 @@ class GenerateEncodingsView(viewsets.ViewSet):
             generated_files = list(encodings_path.glob('*_encodings.pkl')) if encodings_path.exists() else []
             if not generated_files:
                 return Response(
-                    {"error": f"No encodings were generated for {the_classe}. Ensure images contain detectable faces."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {
+                        "error": f"No encodings were generated for {the_classe}. Ensure images contain detectable faces."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            return Response({
-                "message": f"Encodings generated successfully for {the_classe}",
-                "encoding_path": str(encodings_path),
-                "generated_files": [file.name for file in generated_files]
-            }, status=status.HTTP_200_OK)
+            return Response(
+                {
+                    "message": f"Encodings generated successfully for {the_classe}",
+                    "encoding_path": str(encodings_path),
+                    "generated_files": [file.name for file in generated_files],
+                },
+                status=status.HTTP_200_OK,
+            )
 
         except Exception as e:
             return Response(
                 {"error": f"An unexpected error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-        
+
+
 class AttendanceConfirmView(viewsets.ViewSet):
     def post(self, request):
         """
@@ -678,7 +852,7 @@ class AttendanceConfirmView(viewsets.ViewSet):
             if not all([date_str, subject_id, students_data]):
                 return Response(
                     {"error": "Missing required fields: date, subject_id, and students are required"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Convert string to datetime and make it timezone-aware
@@ -688,14 +862,13 @@ class AttendanceConfirmView(viewsets.ViewSet):
             except ValueError:
                 return Response(
                     {"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Validate students data is a list
             if not isinstance(students_data, list):
                 return Response(
-                    {"error": "Students must be provided as a list"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"error": "Students must be provided as a list"}, status=status.HTTP_400_BAD_REQUEST
                 )
 
             # Use Django's transaction to ensure atomicity
@@ -706,7 +879,7 @@ class AttendanceConfirmView(viewsets.ViewSet):
                 except Subject.DoesNotExist:
                     return Response(
                         {"error": f"Subject with id='{subject_id}' not found"},
-                        status=status.HTTP_404_NOT_FOUND
+                        status=status.HTTP_404_NOT_FOUND,
                     )
 
                 # Process each student
@@ -719,13 +892,15 @@ class AttendanceConfirmView(viewsets.ViewSet):
                     if not all([student_id, status_value]):
                         return Response(
                             {"error": "Each student entry must have student_id and status"},
-                            status=status.HTTP_400_BAD_REQUEST
+                            status=status.HTTP_400_BAD_REQUEST,
                         )
 
                     if status_value not in ['present', 'absent']:
                         return Response(
-                            {"error": f"Invalid status '{status_value}' for student {student_id}. Must be 'present' or 'absent'"},
-                            status=status.HTTP_400_BAD_REQUEST
+                            {
+                                "error": f"Invalid status '{status_value}' for student {student_id}. Must be 'present' or 'absent'"
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
                         )
 
                     # Get student by student_id
@@ -734,7 +909,7 @@ class AttendanceConfirmView(viewsets.ViewSet):
                     except Student.DoesNotExist:
                         return Response(
                             {"error": f"Student with student_id {student_id} not found"},
-                            status=status.HTTP_404_NOT_FOUND
+                            status=status.HTTP_404_NOT_FOUND,
                         )
 
                     # Create or update attendance record
@@ -742,7 +917,7 @@ class AttendanceConfirmView(viewsets.ViewSet):
                         student=student,
                         subject=subject,
                         date=attendance_date,
-                        defaults={'status': status_value}
+                        defaults={'status': status_value},
                     )
                     records_processed += 1
 
@@ -750,18 +925,15 @@ class AttendanceConfirmView(viewsets.ViewSet):
                     {
                         "message": "Attendance successfully recorded",
                         "status": "success",
-                        "records_processed": records_processed
+                        "records_processed": records_processed,
                     },
-                    status=status.HTTP_201_CREATED
+                    status=status.HTTP_201_CREATED,
                 )
 
         except ValidationError as e:
-            return Response(
-                {"error": f"Validation error: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": f"Validation error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response(
                 {"error": f"An unexpected error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
